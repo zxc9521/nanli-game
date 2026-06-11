@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>南黎游戏GM后台</title>
+<style>
+body{
+  margin:0;
+  background:#090d18;
+  color:#eef3ff;
+  font-family:system-ui,"Microsoft YaHei",sans-serif;
+}
+.wrap{
+  max-width:760px;
+  margin:40px auto;
+  padding:20px;
+}
+.panel{
+  background:#171d31;
+  border:1px solid #3a4568;
+  border-radius:18px;
+  padding:20px;
+}
+input,select,button{
+  width:100%;
+  margin:8px 0;
+  padding:12px;
+  border-radius:12px;
+  border:1px solid #3a4568;
+  background:#0b1020;
+  color:#eef3ff;
+  font-size:16px;
+}
+button{
+  background:linear-gradient(135deg,#4c7dff,#895fff);
+  border:0;
+  font-weight:800;
+  cursor:pointer;
+}
+.notice{
+  margin-top:14px;
+  color:#ffd166;
+  line-height:1.7;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <h1>南黎游戏 GM 后台</h1>
+
+    <input id="gmSecret" type="password" placeholder="GM密钥">
+    <input id="username" placeholder="玩家用户名">
+
+    <select id="type">
+      <option value="yuanbao">元宝</option>
+      <option value="forgeStones">锻造石</option>
+      <option value="vipExp">VIP经验</option>
+      <option value="doubleExpPills">双倍经验丹</option>
+      <option value="tripleExpPills">三倍经验丹</option>
+      <option value="fiveExpPills">五倍经验丹</option>
+      <option value="tenExpPills">十倍经验丹</option>
+      <option value="vipTrialLow">初阶VIP体验卡</option>
+      <option value="universalShard">万能碎片</option>
+    </select>
+
+    <select id="shardQuality">
+      <option value="normal">普通万能碎片</option>
+      <option value="good">优秀万能碎片</option>
+      <option value="rare">精良万能碎片</option>
+      <option value="epic">卓越万能碎片</option>
+      <option value="legend">传说万能碎片</option>
+      <option value="myth">神话万能碎片</option>
+      <option value="supreme">至臻万能碎片</option>
+      <option value="chroma">炫彩万能碎片</option>
+      <option value="god">神万能碎片</option>
+      <option value="black">黑万能碎片</option>
+    </select>
+
+    <input id="amount" type="number" min="1" value="1" placeholder="数量">
+
+    <button onclick="grant()">发放道具</button>
+
+    <div id="result" class="notice"></div>
+  </div>
+</div>
+
+<script>
+async function grant() {
+  const gmSecret = document.getElementById("gmSecret").value;
+  const username = document.getElementById("username").value.trim();
+  const type = document.getElementById("type").value;
+  const shardQuality = document.getElementById("shardQuality").value;
+  const amount = Number(document.getElementById("amount").value || 0);
+  const result = document.getElementById("result");
+
+  if (!gmSecret) {
+    result.textContent = "请输入GM密钥";
+    return;
+  }
+
+  if (!username) {
+    result.textContent = "请输入玩家用户名";
+    return;
+  }
+
+  if (!amount || amount <= 0) {
+    result.textContent = "请输入正确数量";
+    return;
+  }
+
+  const res = await fetch("/api/gm/grant", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-gm-secret": gmSecret
+    },
+    body: JSON.stringify({
+      username,
+      type,
+      shardQuality,
+      amount
+    })
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    result.textContent = data.error || "发放失败";
+    return;
+  }
+
+  result.textContent = data.message || "发放成功";
+}
+</script>
+</body>
+</html>
