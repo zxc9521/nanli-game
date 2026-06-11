@@ -262,11 +262,16 @@ function bestScore(i){return equipPower(i)+(i.slot==="jewelry"?equipLuck(i)*8:0)
 function bestEquip(){const before=power();for(const s of slotKeys){const best=S.inventory.filter(i=>i.slot===s).sort((a,b)=>bestScore(b)-bestScore(a))[0];if(best)S.equipped[s]=best.id}log(`一键穿戴完成：战力 ${fmt(before)} → ${fmt(power())}。`);render()}
 function sortInventory(){const worn=equippedIds();S.inventory.sort((a,b)=>Number(worn.has(b.id))-Number(worn.has(a.id))||slotKeys.indexOf(a.slot)-slotKeys.indexOf(b.slot)||b.q-a.q||b.tier-a.tier||b.lv-a.lv||bestScore(b)-bestScore(a));log("背包整理完成。");render()}
 function addDrawnEquip(item){if(S.autoBreakBlue&&item.q<=3){const value=Math.floor(sellValue(item)*.55);S.forgeStones+=value;return value}S.inventory.push(item);return 0}
-function drawEquip(count){const cost=count===100?30000:(count===10?3333:388);if(!spend(cost))return;let best=0,breakCount=0,breakValue=0;for(let i=0;i<count;i++){S.equipDraws++;S.equipLegendaryPity++;S.equipColorPity++;let q=S.equipColorPity>=10000?randomChromaQuality():(S.equipLegendaryPity>=1000?7:rollQuality(currentMap().tier,"gacha"));if(q>=7)S.equipLegendaryPity=0;if(q>=8)S.equipColorPity=0;best=Math.max(best,q);const value=addDrawnEquip(newEquip(rollSlot(),currentMap().tier,q));if(value){breakCount++;breakValue+=value}}log(`装备库抽取 ${count} 次，最高获得 ${qualities[best].name}${breakCount?`，自动分解${breakCount}件获得${fmt(breakValue)}锻造石`:""}。`);render()}
+function drawEquip(count){const cost=count===100?30000:(count===10?3333:388);if(!spend(cost))return;let best=0,breakCount=0,breakValue=0;for(let i=0;i<count;i++){S.equipDraws++;S.equipLegendaryPity++;S.equipColorPity++;let q=S.equipColorPity>=10000?randomChromaQuality():(S.equipLegendaryPity>=1000?7:rollQuality(currentMap().tier,"gacha"));if(q>=7)S.equipLegendaryPity=0;if(q>=8)S.equipColorPity=0;best=Math.max(best,q);const value=addDrawnEquip(newEquip(rollSlot(),currentMap().tier,q));if(value){breakCount++;breakValue+=value}}log(`装备库抽取 ${count} 次，最高获得 ${qualities[best].name}${breakCount?`，自动分解${breakCount}件获得${fmt(breakValue)}锻造石`:""}。`);
+if(best>=10 && typeof Online!=="undefined"){
+ Online.announce(`${Online.username||"神秘玩家"} 在装备库 ${count} 连抽中获得 ${qualities[best].name} 装备！`);
+}
+render()}
 function isLegendPartner(p){return partnerQual[p.q].rank>=5}
 function weightedPick(pool){const total=pool.reduce((s,p)=>s+p.w,0);let r=Math.random()*total;for(const p of pool){r-=p.w;if(r<=0)return p}return pool[0]}
 function rollPartner(force=""){if(force==="shanyu")return partners.find(p=>p.id==="shanyu");if(force==="legend")return weightedPick(partners.filter(p=>!p.hidden&&p.w>0&&isLegendPartner(p)));return weightedPick(partners.filter(p=>p.w>0))}
-function grantPartner(p,results){if(!S.partners[p.id]){S.partners[p.id]={star:1,shards:0};results.push(`获得[${partnerQual[p.q].name}]${p.name}`);if(p.hidden)log(`隐藏伙伴现世：${p.name}！`);return}const o=S.partners[p.id];if(o.star>=6){addUniversalShard(p.q,1);results.push(`${p.name}已满星，转化为${shardName(p.q)}万能碎片+1`);return}o.shards++;const need=o.star*2+1;if(o.shards>=need){o.shards-=need;o.star++;results.push(`${p.name}升至${o.star}星`)}else results.push(`${p.name}碎片+1`)}
+function grantPartner(p,results){if(!S.partners[p.id]){S.partners[p.id]={star:1,shards:0};results.push(`获得[${partnerQual[p.q].name}]${p.name}`);if(p.hidden)log(`隐藏伙伴现世：${p.name}！`);if((partnerQual[p.q]?.rank||0)>=9&&typeof Online!=="undefined"){Online.announce(`${Online.username||"神秘玩家"} 获得了 [${partnerQual[p.q].name}] ${p.name}！`)}return}const o=S.partners[p.id];
+if(o.star>=6){addUniversalShard(p.q,1);results.push(`${p.name}已满星，转化为${shardName(p.q)}万能碎片+1`);return}o.shards++;const need=o.star*2+1;if(o.shards>=need){o.shards-=need;o.star++;results.push(`${p.name}升至${o.star}星`)}else results.push(`${p.name}碎片+1`)}
 function drawPartner(count){const cost=count===100?80000:(count===10?8888:999);if(!spend(cost))return;const results=[];for(let i=0;i<count;i++){S.partnerDraws++;S.partnerLegendPity++;S.partnerShanyuPity++;let force="";if(S.partnerShanyuPity>=1000)force="shanyu";else if(S.partnerLegendPity>=100)force="legend";const p=rollPartner(force);if(isLegendPartner(p))S.partnerLegendPity=0;if(p.id==="shanyu"||p.id==="god_shanyu")S.partnerShanyuPity=0;grantPartner(p,results)}log(results.slice(0,6).join("；")+(results.length>6?"……":""));sortPartners(false);render()}
 function scratchCard(count=1){
  const cost=count===100?50000:(count===10?5500:600);
@@ -285,8 +290,11 @@ function scratchCard(count=1){
   best=Math.max(best,gain);
  }
  S.forgeStones+=total;
- log(`刮刮乐 ${count} 次，获得 ${fmt(total)} 锻造石，单次最高 ${fmt(best)}。`);
- render();
+log(`刮刮乐 ${count} 次，获得 ${fmt(total)} 锻造石，单次最高 ${fmt(best)}。`);
+if(best>=50000 && typeof Online!=="undefined"){
+ Online.announce(`${Online.username||"神秘玩家"} 刮刮乐刮出大奖，单次获得 ${fmt(best)} 锻造石！`);
+}
+render();
 }
 function sortPartners(needRender=true){const rank=id=>{const p=partners.find(x=>x.id===id),o=S.partners[id];return [S.carried.includes(id)?1:0,p?partnerQual[p.q].rank:0,o?.star||0,o?.shards||0,p?.name||id]};S.carried=S.carried.filter(id=>S.partners[id]).sort((a,b)=>rank(b)[1]-rank(a)[1]||rank(b)[2]-rank(a)[2]||rank(a)[4].localeCompare(rank(b)[4],"zh-Hans-CN"));const sorted={};Object.keys(S.partners).sort((a,b)=>rank(b)[0]-rank(a)[0]||rank(b)[1]-rank(a)[1]||rank(b)[2]-rank(a)[2]||rank(b)[3]-rank(a)[3]||rank(a)[4].localeCompare(rank(b)[4],"zh-Hans-CN")).forEach(id=>sorted[id]=S.partners[id]);S.partners=sorted;log("伙伴整理完成。");if(needRender)render()}
 function carry(id){if(!S.partners[id])return;if(S.carried.includes(id)){S.carried=S.carried.filter(e=>e!==id);log(`卸下伙伴 ${partnerName(id)}。`)}else{if(S.carried.length>=4)return log("最多同时携带4位伙伴。");S.carried.push(id);log(`携带伙伴 ${partnerName(id)}。`)}render()}
@@ -373,7 +381,7 @@ function giftHTML(){return `<div class="panel"><h2>礼包中心</h2><p class="mu
 syncArtifact();refreshTasks();calcOffline();render();
 setInterval(()=>{tick(1,false);S.last=Date.now();if(Date.now()-lastRender>1200)render();localStorage.setItem(SAVE_KEY,JSON.stringify(S))},1000);
 
-return{tab,save,reset,toggleAntiAddiction,claimCodeGift,claimGift,usePill,useMultiPill,quickGain,selectMap,enterTrialVip,challengeBoss,challengeFengyou,wear,enhance,sell,sellUnequipped,bestEquip,sortInventory,drawEquip,drawPartner,scratchCard,carry,togglePartnerView,toggleAutoBreak,sortPartners,claimVipGift,exchangeUniversalShard,exchangeAllUniversalShard,breakPartnerShards,useUniversalShard,refreshTasks:()=>{refreshTasks(true);render()},completeTask,
+return{tab,save,reset,toggleAntiAddiction,claimCodeGift,claimGift,usePill,useMultiPill,quickGain,selectMap,enterTrialVip,challengeBoss,challengeFengyou,wear,enhance,sell,sellUnequipped,bestEquip,sortInventory,drawEquip,drawPartner,scratchCard,carry,togglePartnerView,toggleAutoBreak,sortPartners,claimVipGift,exchangeUniversalShard,exchangeAllUniversalShard,breakPartnerShards,useUniversalShard,refreshTasks:()=>{refreshTasks(true);render()},completeTask,addSystemLog:(text)=>{log(text);render();},
 getPower:()=>power(),
 getLevel:()=>S.level,
 getVip:()=>vipLevel(),
@@ -392,6 +400,7 @@ getSaveTime:()=>S.last||0
 const Online = {
   token: localStorage.getItem("nanli_token") || "",
   username: localStorage.getItem("nanli_username") || "",
+  lastAnnouncementId: Number(localStorage.getItem("nanli_last_announcement_id") || 0),
 
   status(text) {
     const box = document.getElementById("onlineStatus");
@@ -541,6 +550,35 @@ if (useCloud) {
   this.status("已登录：" + this.username + "，已保留本地存档");
 }
 },
+async announce(text) {
+  if (!this.token || !text || location.protocol === "file:") return;
+  try {
+    await fetch("/api/announcement", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + this.token
+      },
+      body: JSON.stringify({ text })
+    });
+  } catch {}
+},
+async loadAnnouncements() {
+  if (location.protocol === "file:") return;
+  try {
+    const res = await fetch("/api/announcement?since=" + this.lastAnnouncementId);
+    if (!res.ok) return;
+    const rows = await res.json();
+    if (!rows.length) return;
+    for (const row of rows) {
+      this.lastAnnouncementId = Math.max(this.lastAnnouncementId, row.id);
+      localStorage.setItem("nanli_last_announcement_id", this.lastAnnouncementId);
+      if (typeof Game !== "undefined" && Game.addSystemLog) {
+        Game.addSystemLog("【全服通报】" + row.text);
+      }
+    }
+  } catch {}
+},
   async submitRanking() {
     if (!this.token) {
       this.status("未登录，无法上传战力");
@@ -604,12 +642,18 @@ if (useCloud) {
 };
 
 window.addEventListener("load", () => {
+  if (location.protocol === "file:") {
+    Online.status("离线模式：登录、云存档、排行榜和全服通报不可用");
+    return;
+  }
   Online.init();
-
   setInterval(() => {
     Online.submitRanking();
     Online.uploadSave();
   }, 30000);
+  setInterval(() => {
+    Online.loadAnnouncements();
+  }, 5000);
 });
 </script>
 </body>

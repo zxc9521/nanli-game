@@ -33,6 +33,12 @@ CREATE TABLE IF NOT EXISTS rankings (
   updated_at INTEGER NOT NULL,
   FOREIGN KEY(user_id) REFERENCES users(id)
 );
+
+CREATE TABLE IF NOT EXISTS announcements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  text TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
 `);
 
 const userColumns = db.prepare(`PRAGMA table_info(users)`).all().map(col => col.name);
@@ -247,6 +253,45 @@ app.post("/api/save", auth, (req, res) => {
   res.json({ ok: true });
 });
 
+app.post("/api/announcement", auth, (req, res) => {
+  const text = String(req.body.text || "").trim();
+
+  if (!text || text.length > 120) {
+    return res.status(400).json({ error: "通报内容错误" });
+  }
+
+  db.prepare(`
+    INSERT INTO announcements (text, created_at)
+    VALUES (?, ?)
+  `).run(text, Date.now());
+
+  db.prepare(`
+    DELETE FROM announcements
+    WHERE id NOT IN (
+      SELECT id
+      FROM announcements
+      ORDER BY id DESC
+      LIMIT 50
+    )
+  `).run();
+
+  res.json({ ok: true });
+});
+
+app.get("/api/announcement", (req, res) => {
+  const since = Math.max(0, Math.floor(Number(req.query.since) || 0));
+
+  const rows = db.prepare(`
+    SELECT id, text, created_at
+    FROM announcements
+    WHERE id > ?
+    ORDER BY id ASC
+    LIMIT 20
+  `).all(since);
+
+  res.json(rows);
+});
+
 app.post("/api/gm/grant", gmAuth, (req, res) => {
   const username = String(req.body.username || "").trim();
   const type = String(req.body.type || "").trim();
@@ -296,7 +341,8 @@ app.post("/api/gm/grant", gmAuth, (req, res) => {
       "supreme",
       "chroma",
       "god",
-      "black"
+      "black",
+      "zenlegend"
     ];
 
     if (!allowed.includes(shardQuality)) {
@@ -440,7 +486,8 @@ app.post("/api/gm/clear-shards", gmAuth, (req, res) => {
     supreme: 0,
     chroma: 0,
     god: 0,
-    black: 0
+    black: 0,
+    zenlegend: 0
   };
 
   writeUserSave(user.id, save);
