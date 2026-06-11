@@ -34,9 +34,11 @@ h1,h2,h3{margin:.2em 0 .55em}p{line-height:1.65}.tag{display:inline-flex;border:
       <div class="brand">南黎文字挂机传</div>
       <div class="sub">主线挂机 · VIP副本 · 暴打风油 · 万能碎片 · 锻造石强化 · 兑换码礼包</div>
     </div>
-    <div class="row"><button class="ghost" onclick="Game.save()">保存</button><button class="danger" onclick="Game.reset()">重置</button></div>
+    <div class="row"><button class="ghost" onclick="Game.save(); Online.uploadSave()">保存</button><button class="danger" onclick="Game.reset()">重置</button></div>
   </div>
   <div id="app"></div>
+</div>
+
 <div class="wrap">
   <div class="panel">
     <h2>账号登录</h2>
@@ -312,9 +314,18 @@ function giftHTML(){return `<div class="panel"><h2>礼包中心</h2><p class="mu
 syncArtifact();refreshTasks();calcOffline();render();
 setInterval(()=>{tick(1,false);S.last=Date.now();if(Date.now()-lastRender>1200)render();localStorage.setItem(SAVE_KEY,JSON.stringify(S))},1000);
 
-return{tab,save,reset,claimCodeGift,claimGift,usePill,useMultiPill,quickGain,selectMap,enterTrialVip,challengeBoss,challengeFengyou,wear,enhance,sell,sellUnequipped,bestEquip,sortInventory,drawEquip,drawPartner,carry,togglePartnerView,toggleAutoBreak,sortPartners,claimVipGift,exchangeUniversalShard,exchangeAllUniversalShard,breakPartnerShards,useUniversalShard,refreshTasks:()=>{refreshTasks(true);render()},completeTask,getPower:()=>power(),
+return{tab,save,reset,claimCodeGift,claimGift,usePill,useMultiPill,quickGain,selectMap,enterTrialVip,challengeBoss,challengeFengyou,wear,enhance,sell,sellUnequipped,bestEquip,sortInventory,drawEquip,drawPartner,carry,togglePartnerView,toggleAutoBreak,sortPartners,claimVipGift,exchangeUniversalShard,exchangeAllUniversalShard,breakPartnerShards,useUniversalShard,refreshTasks:()=>{refreshTasks(true);render()},completeTask,
+getPower:()=>power(),
 getLevel:()=>S.level,
-getVip:()=>vipLevel()
+getVip:()=>vipLevel(),
+exportSave:()=>JSON.parse(JSON.stringify(S)),
+importSave:(data)=>{
+  S=normalize(data);
+  syncArtifact();
+  localStorage.setItem(SAVE_KEY,JSON.stringify(S));
+  render();
+},
+getSaveTime:()=>S.last||0
 };
 })();
 </script>
@@ -328,15 +339,15 @@ const Online = {
     if (box) box.textContent = text;
   },
 
-  init() {
-    if (this.token) {
-      this.status("已登录：" + this.username);
-    } else {
-      this.status("未登录");
-    }
-
-    this.loadRanking();
-  },
+async init() {
+  if (this.token) {
+    this.status("已登录：" + this.username);
+    await this.downloadSave();
+  } else {
+    this.status("未登录");
+  }
+  this.loadRanking();
+},
 
   async register() {
     const username = document.getElementById("loginUser").value.trim();
@@ -370,6 +381,7 @@ const Online = {
 
     this.status("已登录：" + this.username);
     alert("注册并登录成功");
+    await this.uploadSave();
   },
 
   async login() {
@@ -404,6 +416,7 @@ const Online = {
 
     this.status("已登录：" + this.username);
     alert("登录成功");
+    await this.downloadSave();
   },
 
   logout() {
@@ -416,7 +429,59 @@ const Online = {
     this.status("未登录");
     alert("已退出登录");
   },
-
+async uploadSave() {
+  if (!this.token) return;
+  if (typeof Game === "undefined" || !Game.exportSave) {
+    this.status("游戏存档接口未加载");
+    return;
+  }
+  const save = Game.exportSave();
+  const res = await fetch("/api/save", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + this.token
+    },
+    body: JSON.stringify({
+      save,
+      updatedAt: Date.now()
+    })
+  });
+  if (!res.ok) {
+    this.status("云存档上传失败");
+    return;
+  }
+  this.status("已登录：" + this.username + "，云存档已同步");
+},
+async downloadSave() {
+  if (!this.token) return;
+  if (typeof Game === "undefined" || !Game.importSave) {
+    this.status("游戏存档接口未加载");
+    return;
+  }
+  const res = await fetch("/api/save", {
+    headers: {
+      "Authorization": "Bearer " + this.token
+    }
+  });
+  if (!res.ok) {
+    this.status("云存档读取失败");
+    return;
+  }
+  const data = await res.json();
+  if (!data.save) {
+    this.status("已登录：" + this.username + "，暂无云存档");
+    return;
+  }
+  const useCloud = confirm("发现云端存档，是否加载并覆盖当前本地存档？");
+if (useCloud) {
+  Game.importSave(data.save);
+  this.status("已登录：" + this.username + "，云存档已加载");
+  alert("已加载云端存档");
+} else {
+  this.status("已登录：" + this.username + "，已保留本地存档");
+}
+},
   async submitRanking() {
     if (!this.token) {
       this.status("未登录，无法上传战力");
@@ -484,6 +549,7 @@ window.addEventListener("load", () => {
 
   setInterval(() => {
     Online.submitRanking();
+    Online.uploadSave();
   }, 30000);
 });
 </script>

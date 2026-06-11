@@ -9,7 +9,7 @@ const db = new Database("game.db");
 
 const JWT_SECRET = "nanli_change_this_to_a_long_random_secret_123456";
 
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "10mb" }));
 app.use(express.static(__dirname));
 
 db.exec(`
@@ -17,7 +17,9 @@ CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
-  created_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL,
+  save_data TEXT,
+  save_updated_at INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS rankings (
@@ -30,6 +32,16 @@ CREATE TABLE IF NOT EXISTS rankings (
   FOREIGN KEY(user_id) REFERENCES users(id)
 );
 `);
+
+const userColumns = db.prepare(`PRAGMA table_info(users)`).all().map(col => col.name);
+
+if (!userColumns.includes("save_data")) {
+  db.exec(`ALTER TABLE users ADD COLUMN save_data TEXT`);
+}
+
+if (!userColumns.includes("save_updated_at")) {
+  db.exec(`ALTER TABLE users ADD COLUMN save_updated_at INTEGER NOT NULL DEFAULT 0`);
+}
 
 function auth(req, res, next) {
   const header = req.headers.authorization || "";
@@ -104,6 +116,56 @@ app.post("/api/login", async (req, res) => {
   );
 
   res.json({ token, username: user.username });
+});
+
+app.get("/api/save", auth, (req, res) => {
+  const user = db.prepare(`
+    SELECT save_data, save_updated_at
+    FROM users
+    WHERE id = ?
+  `).get(req.user.id);
+
+  if (!user || !user.save_data) {
+    return res.json({
+      save: null,
+      updatedAt: 0
+    });
+  }
+
+  try {
+    res.json({
+      save: JSON.parse(user.save_data),
+      updatedAt: user.save_updated_at || 0
+    });
+  } catch {
+    res.json({
+      save: null,
+      updatedAt: 0
+    });
+  }
+});
+
+app.post("/api/save", auth, (req, res) => {
+  const save = req.body.save;
+  const updatedAt = Math.max(0, Math.floor(Number(req.body.updatedAt) || Date.now()));
+
+  if (!save || typeof save !== "object" || Array.isArray(save)) {
+    return res.status(400).json({ error: "存档格式错误" });
+  }
+
+  const saveText = JSON.stringify(save);
+
+  if (saveText.length > 8 * 1024 * 1024) {
+    return res.status(400).json({ error: "存档太大，请先清理背包" });
+  }
+
+  db.prepare(`
+    UPDATE users
+    SET save_data = ?, save_updated_at = ?
+    WHERE id = ?
+  `).run(saveText, updatedAt, req.user.id);
+
+  res.json({ ok: true });
 });
 
 app.post("/api/ranking", auth, (req, res) => {
