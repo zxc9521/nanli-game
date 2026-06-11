@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   created_at INTEGER NOT NULL,
   save_data TEXT,
-  save_updated_at INTEGER NOT NULL DEFAULT 0
+  save_updated_at INTEGER NOT NULL DEFAULT 0,
+  banned INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS rankings (
@@ -44,12 +45,35 @@ if (!userColumns.includes("save_updated_at")) {
   db.exec(`ALTER TABLE users ADD COLUMN save_updated_at INTEGER NOT NULL DEFAULT 0`);
 }
 
+if (!userColumns.includes("banned")) {
+  db.exec(`ALTER TABLE users ADD COLUMN banned INTEGER NOT NULL DEFAULT 0`);
+}
+
 function auth(req, res, next) {
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : "";
 
   try {
-    req.user = jwt.verify(token, JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET);
+    const user = db.prepare(`
+      SELECT id, username, banned
+      FROM users
+      WHERE id = ?
+    `).get(payload.id);
+
+    if (!user) {
+      return res.status(401).json({ error: "账号不存在" });
+    }
+
+    if (user.banned) {
+      return res.status(403).json({ error: "账号已被封禁" });
+    }
+
+    req.user = {
+      id: user.id,
+      username: user.username
+    };
+
     next();
   } catch {
     res.status(401).json({ error: "未登录或登录已过期" });
@@ -64,6 +88,44 @@ function gmAuth(req, res, next) {
   }
 
   next();
+}
+
+function readUserSave(username) {
+  const user = db.prepare(`
+    SELECT id, username, save_data
+    FROM users
+    WHERE username = ?
+  `).get(username);
+
+  if (!user) {
+    return { error: "玩家不存在" };
+  }
+
+  let save = null;
+
+  try {
+    save = user.save_data ? JSON.parse(user.save_data) : null;
+  } catch {
+    save = null;
+  }
+
+  if (!save || typeof save !== "object") {
+    return {
+      error: "该玩家暂无云存档，请让玩家先登录并保存一次"
+    };
+  }
+
+  return { user, save };
+}
+
+function writeUserSave(userId, save) {
+  save.last = Date.now();
+
+  db.prepare(`
+    UPDATE users
+    SET save_data = ?, save_updated_at = ?
+    WHERE id = ?
+  `).run(JSON.stringify(save), Date.now(), userId);
 }
 
 app.post("/api/register", async (req, res) => {
@@ -107,11 +169,17 @@ app.post("/api/login", async (req, res) => {
   const password = String(req.body.password || "");
 
   const user = db.prepare(`
-    SELECT * FROM users WHERE username = ?
+    SELECT *
+    FROM users
+    WHERE username = ?
   `).get(username);
 
   if (!user) {
     return res.status(401).json({ error: "账号或密码错误" });
+  }
+
+  if (user.banned) {
+    return res.status(403).json({ error: "账号已被封禁" });
   }
 
   const ok = await bcrypt.compare(password, user.password_hash);
@@ -193,29 +261,13 @@ app.post("/api/gm/grant", gmAuth, (req, res) => {
     return res.status(400).json({ error: "请选择发放类型" });
   }
 
-  const user = db.prepare(`
-    SELECT id, username, save_data
-    FROM users
-    WHERE username = ?
-  `).get(username);
+  const result = readUserSave(username);
 
-  if (!user) {
-    return res.status(404).json({ error: "玩家不存在" });
+  if (result.error) {
+    return res.status(400).json({ error: result.error });
   }
 
-  let save;
-
-  try {
-    save = user.save_data ? JSON.parse(user.save_data) : null;
-  } catch {
-    save = null;
-  }
-
-  if (!save || typeof save !== "object") {
-    return res.status(400).json({
-      error: "该玩家暂无云存档，请让玩家先登录并保存一次"
-    });
-  }
+  const { user, save } = result;
 
   if (type === "yuanbao") {
     save.yuanbao = Math.max(0, Math.floor(Number(save.yuanbao) || 0)) + amount;
@@ -258,17 +310,144 @@ app.post("/api/gm/grant", gmAuth, (req, res) => {
     return res.status(400).json({ error: "不支持的发放类型" });
   }
 
-  save.last = Date.now();
-
-  db.prepare(`
-    UPDATE users
-    SET save_data = ?, save_updated_at = ?
-    WHERE id = ?
-  `).run(JSON.stringify(save), Date.now(), user.id);
+  writeUserSave(user.id, save);
 
   res.json({
     ok: true,
     message: `已向 ${user.username} 发放成功`
+  });
+});
+
+app.post("/api/gm/clear-ranking", gmAuth, (req, res) => {
+  db.prepare(`DELETE FROM rankings`).run();
+
+  res.json({
+    ok: true,
+    message: "排行榜已清空"
+  });
+});
+
+app.post("/api/gm/ban", gmAuth, (req, res) => {
+  const username = String(req.body.username || "").trim();
+
+  if (!username) {
+    return res.status(400).json({ error: "请输入玩家用户名" });
+  }
+
+  const user = db.prepare(`
+    SELECT id, username
+    FROM users
+    WHERE username = ?
+  `).get(username);
+
+  if (!user) {
+    return res.status(404).json({ error: "玩家不存在" });
+  }
+
+  db.prepare(`
+    UPDATE users
+    SET banned = 1
+    WHERE id = ?
+  `).run(user.id);
+
+  db.prepare(`
+    DELETE FROM rankings
+    WHERE user_id = ?
+  `).run(user.id);
+
+  res.json({
+    ok: true,
+    message: `${user.username} 已被封号，并已从排行榜移除`
+  });
+});
+
+app.post("/api/gm/unban", gmAuth, (req, res) => {
+  const username = String(req.body.username || "").trim();
+
+  if (!username) {
+    return res.status(400).json({ error: "请输入玩家用户名" });
+  }
+
+  const user = db.prepare(`
+    SELECT id, username
+    FROM users
+    WHERE username = ?
+  `).get(username);
+
+  if (!user) {
+    return res.status(404).json({ error: "玩家不存在" });
+  }
+
+  db.prepare(`
+    UPDATE users
+    SET banned = 0
+    WHERE id = ?
+  `).run(user.id);
+
+  res.json({
+    ok: true,
+    message: `${user.username} 已解除封号`
+  });
+});
+
+app.post("/api/gm/clear-yuanbao", gmAuth, (req, res) => {
+  const username = String(req.body.username || "").trim();
+
+  if (!username) {
+    return res.status(400).json({ error: "请输入玩家用户名" });
+  }
+
+  const result = readUserSave(username);
+
+  if (result.error) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  const { user, save } = result;
+
+  save.yuanbao = 0;
+
+  writeUserSave(user.id, save);
+
+  res.json({
+    ok: true,
+    message: `${user.username} 的元宝已清空`
+  });
+});
+
+app.post("/api/gm/clear-shards", gmAuth, (req, res) => {
+  const username = String(req.body.username || "").trim();
+
+  if (!username) {
+    return res.status(400).json({ error: "请输入玩家用户名" });
+  }
+
+  const result = readUserSave(username);
+
+  if (result.error) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  const { user, save } = result;
+
+  save.universalShards = {
+    normal: 0,
+    good: 0,
+    rare: 0,
+    epic: 0,
+    legend: 0,
+    myth: 0,
+    supreme: 0,
+    chroma: 0,
+    god: 0,
+    black: 0
+  };
+
+  writeUserSave(user.id, save);
+
+  res.json({
+    ok: true,
+    message: `${user.username} 的万能碎片已清空`
   });
 });
 

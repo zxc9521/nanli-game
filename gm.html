@@ -5,133 +5,269 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>南黎游戏GM后台</title>
 <style>
+:root{
+  --bg:#090d18;
+  --card:#171d31;
+  --line:#3a4568;
+  --text:#eef3ff;
+  --muted:#aeb8d8;
+  --gold:#ffd166;
+  --red:#ff6b7a;
+  --green:#65e6a5;
+}
+*{box-sizing:border-box}
 body{
   margin:0;
-  background:#090d18;
-  color:#eef3ff;
+  background:radial-gradient(circle at 30% 0,#314268,#101729 42%,#070a12);
+  color:var(--text);
   font-family:system-ui,"Microsoft YaHei",sans-serif;
 }
 .wrap{
-  max-width:760px;
-  margin:40px auto;
+  max-width:960px;
+  margin:30px auto;
   padding:20px;
 }
 .panel{
-  background:#171d31;
-  border:1px solid #3a4568;
+  background:linear-gradient(180deg,#202842,#151b2e);
+  border:1px solid var(--line);
   border-radius:18px;
   padding:20px;
+  margin-bottom:16px;
+  box-shadow:0 18px 44px #0006;
+}
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+  gap:14px;
 }
 input,select,button{
   width:100%;
-  margin:8px 0;
+  margin:7px 0;
   padding:12px;
   border-radius:12px;
-  border:1px solid #3a4568;
+  border:1px solid var(--line);
   background:#0b1020;
-  color:#eef3ff;
+  color:var(--text);
   font-size:16px;
 }
 button{
   background:linear-gradient(135deg,#4c7dff,#895fff);
   border:0;
-  font-weight:800;
+  font-weight:850;
   cursor:pointer;
+}
+button:hover{filter:brightness(1.1)}
+.danger{
+  background:linear-gradient(135deg,#ff5470,#b91c45);
+}
+.gold{
+  background:linear-gradient(135deg,#d79020,#ffd166);
+  color:#231900;
+}
+.ghost{
+  background:#2c3656;
 }
 .notice{
   margin-top:14px;
-  color:#ffd166;
+  padding:12px;
+  border:1px solid var(--line);
+  background:#101827;
+  border-radius:14px;
+  color:var(--gold);
   line-height:1.7;
+  min-height:46px;
 }
+.muted{
+  color:var(--muted);
+  line-height:1.6;
+}
+h1,h2,h3{margin:.2em 0 .6em}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="panel">
     <h1>南黎游戏 GM 后台</h1>
-
+    <p class="muted">请勿公开此页面。GM密钥必须和服务器 `server.js` 里的 `GM_SECRET` 一致。</p>
     <input id="gmSecret" type="password" placeholder="GM密钥">
-    <input id="username" placeholder="玩家用户名">
+    <div id="result" class="notice">等待操作...</div>
+  </div>
 
-    <select id="type">
-      <option value="yuanbao">元宝</option>
-      <option value="forgeStones">锻造石</option>
-      <option value="vipExp">VIP经验</option>
-      <option value="doubleExpPills">双倍经验丹</option>
-      <option value="tripleExpPills">三倍经验丹</option>
-      <option value="fiveExpPills">五倍经验丹</option>
-      <option value="tenExpPills">十倍经验丹</option>
-      <option value="vipTrialLow">初阶VIP体验卡</option>
-      <option value="universalShard">万能碎片</option>
-    </select>
+  <div class="grid">
+    <div class="panel">
+      <h2>发放道具</h2>
+      <input id="grantUsername" placeholder="玩家用户名">
 
-    <select id="shardQuality">
-      <option value="normal">普通万能碎片</option>
-      <option value="good">优秀万能碎片</option>
-      <option value="rare">精良万能碎片</option>
-      <option value="epic">卓越万能碎片</option>
-      <option value="legend">传说万能碎片</option>
-      <option value="myth">神话万能碎片</option>
-      <option value="supreme">至臻万能碎片</option>
-      <option value="chroma">炫彩万能碎片</option>
-      <option value="god">神万能碎片</option>
-      <option value="black">黑万能碎片</option>
-    </select>
+      <select id="type">
+        <option value="yuanbao">元宝</option>
+        <option value="forgeStones">锻造石</option>
+        <option value="vipExp">VIP经验</option>
+        <option value="doubleExpPills">双倍经验丹</option>
+        <option value="tripleExpPills">三倍经验丹</option>
+        <option value="fiveExpPills">五倍经验丹</option>
+        <option value="tenExpPills">十倍经验丹</option>
+        <option value="vipTrialLow">初阶VIP体验卡</option>
+        <option value="universalShard">万能碎片</option>
+      </select>
 
-    <input id="amount" type="number" min="1" value="1" placeholder="数量">
+      <select id="shardQuality">
+        <option value="normal">普通万能碎片</option>
+        <option value="good">优秀万能碎片</option>
+        <option value="rare">精良万能碎片</option>
+        <option value="epic">卓越万能碎片</option>
+        <option value="legend">传说万能碎片</option>
+        <option value="myth">神话万能碎片</option>
+        <option value="supreme">至臻万能碎片</option>
+        <option value="chroma">炫彩万能碎片</option>
+        <option value="god">神万能碎片</option>
+        <option value="black">黑万能碎片</option>
+      </select>
 
-    <button onclick="grant()">发放道具</button>
+      <input id="amount" type="number" min="1" value="1" placeholder="数量">
+      <button class="gold" onclick="grant()">发放道具</button>
+    </div>
 
-    <div id="result" class="notice"></div>
+    <div class="panel">
+      <h2>玩家处理</h2>
+      <input id="targetUsername" placeholder="玩家用户名">
+      <button class="danger" onclick="banUser()">一键封号</button>
+      <button class="ghost" onclick="unbanUser()">解除封号</button>
+      <button class="danger" onclick="clearYuanbao()">清空元宝</button>
+      <button class="danger" onclick="clearShards()">清空万能碎片</button>
+      <p class="muted">封号后玩家无法登录、无法上传战力、无法同步云存档，并会从排行榜移除。</p>
+    </div>
+
+    <div class="panel">
+      <h2>全服操作</h2>
+      <button class="danger" onclick="clearRanking()">一键清空排行榜</button>
+      <p class="muted">清空排行榜不会删除玩家账号，也不会删除玩家存档。玩家下次自动上传战力后可能重新上榜。</p>
+    </div>
   </div>
 </div>
 
 <script>
-async function grant() {
-  const gmSecret = document.getElementById("gmSecret").value;
-  const username = document.getElementById("username").value.trim();
-  const type = document.getElementById("type").value;
-  const shardQuality = document.getElementById("shardQuality").value;
-  const amount = Number(document.getElementById("amount").value || 0);
-  const result = document.getElementById("result");
+function getSecret() {
+  return document.getElementById("gmSecret").value;
+}
+
+function show(text) {
+  document.getElementById("result").textContent = text;
+}
+
+async function postGM(url, body = {}) {
+  const gmSecret = getSecret();
 
   if (!gmSecret) {
-    result.textContent = "请输入GM密钥";
-    return;
+    show("请输入GM密钥");
+    return null;
   }
 
-  if (!username) {
-    result.textContent = "请输入玩家用户名";
-    return;
-  }
-
-  if (!amount || amount <= 0) {
-    result.textContent = "请输入正确数量";
-    return;
-  }
-
-  const res = await fetch("/api/gm/grant", {
+  const res = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "x-gm-secret": gmSecret
     },
-    body: JSON.stringify({
-      username,
-      type,
-      shardQuality,
-      amount
-    })
+    body: JSON.stringify(body)
   });
 
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    result.textContent = data.error || "发放失败";
+    show(data.error || "操作失败");
+    return null;
+  }
+
+  show(data.message || "操作成功");
+  return data;
+}
+
+async function grant() {
+  const username = document.getElementById("grantUsername").value.trim();
+  const type = document.getElementById("type").value;
+  const shardQuality = document.getElementById("shardQuality").value;
+  const amount = Number(document.getElementById("amount").value || 0);
+
+  if (!username) {
+    show("请输入玩家用户名");
     return;
   }
 
-  result.textContent = data.message || "发放成功";
+  if (!amount || amount <= 0) {
+    show("请输入正确数量");
+    return;
+  }
+
+  await postGM("/api/gm/grant", {
+    username,
+    type,
+    shardQuality,
+    amount
+  });
+}
+
+async function banUser() {
+  const username = document.getElementById("targetUsername").value.trim();
+
+  if (!username) {
+    show("请输入玩家用户名");
+    return;
+  }
+
+  if (!confirm("确定封禁玩家：" + username + "？")) {
+    return;
+  }
+
+  await postGM("/api/gm/ban", { username });
+}
+
+async function unbanUser() {
+  const username = document.getElementById("targetUsername").value.trim();
+
+  if (!username) {
+    show("请输入玩家用户名");
+    return;
+  }
+
+  await postGM("/api/gm/unban", { username });
+}
+
+async function clearYuanbao() {
+  const username = document.getElementById("targetUsername").value.trim();
+
+  if (!username) {
+    show("请输入玩家用户名");
+    return;
+  }
+
+  if (!confirm("确定清空玩家【" + username + "】的元宝？")) {
+    return;
+  }
+
+  await postGM("/api/gm/clear-yuanbao", { username });
+}
+
+async function clearShards() {
+  const username = document.getElementById("targetUsername").value.trim();
+
+  if (!username) {
+    show("请输入玩家用户名");
+    return;
+  }
+
+  if (!confirm("确定清空玩家【" + username + "】的万能碎片？")) {
+    return;
+  }
+
+  await postGM("/api/gm/clear-shards", { username });
+}
+
+async function clearRanking() {
+  if (!confirm("确定清空全服排行榜？")) {
+    return;
+  }
+
+  await postGM("/api/gm/clear-ranking");
 }
 </script>
 </body>
