@@ -56,9 +56,10 @@ h1,h2,h3{margin:.2em 0 .55em}p{line-height:1.65}.tag{display:inline-flex;border:
 
   <div class="panel">
     <h2>在线战力排行榜</h2>
-    <p class="muted">排行榜按战力排序，战力相同再按等级和VIP排序。</p>
+    <p class="muted">排行榜仅显示前五名，每日可领取一次排行奖励。</p>
     <button onclick="Online.submitRanking()">立即上传战力</button>
     <button onclick="Online.loadRanking()">刷新排行榜</button>
+<button class="goldBtn" onclick="Online.claimDailyRankingReward()">领取每日排行奖励</button>
     <div id="rankingBox" class="grid" style="margin-top:12px"></div>
   </div>
 </div>
@@ -98,7 +99,14 @@ const maps=[
 ["血食荒原","荒原吞骨兽",76000,730,172,.081,34,11],["暴雨天峰","天峰雷兽",110000,1010,235,.086,35,12],["圣灵遗迹","遗迹圣像",158000,1400,320,.091,36,13],
 ["炫彩裂隙","裂隙虹魔",235000,1960,445,.096,37,14],["虚空天门","虚空门神",350000,2750,620,.101,38,15],["终焉神殿","终焉巨像",520000,3800,875,.11,40,16],
 ["无烬沙海","沙海古皇",780000,5200,1180,.115,41,17],["天外残垣","残垣星兽",1150000,7200,1600,.12,42,18],["归墟潮眼","归墟潮主",1700000,9800,2180,.125,43,19],
-["万古龙渊","龙渊古魂",2500000,13500,3000,.13,44,20],["星河禁域","星河禁卫",3700000,18500,4200,.135,45,21],["太初神墟","太初神影",5500000,25500,5800,.14,46,22]
+["万古龙渊","龙渊古魂",2500000,13500,3000,.13,44,20],["星河禁域","星河禁卫",3700000,18500,4200,.135,45,21],["太初神墟","太初神影",5500000,25500,5800,.14,46,22],
+["苍穹断界","断界天魔",8200000,36000,6500,.145,47,23],
+["不朽神陵","不朽陵卫",12000000,51000,7200,.15,48,24],
+["九幽魔海","九幽魔君",17500000,72000,8000,.155,49,25],
+["玄黄天域","玄黄神将",25500000,102000,9000,.16,50,26],
+["鸿蒙古境","鸿蒙古灵",37000000,145000,10000,.165,52,27],
+["永恒星渊","星渊主宰",54000000,205000,11200,.17,54,28],
+["太上无极界","无极天尊",78000000,290000,12500,.175,56,30]
 ].map(x=>({name:x[0],boss:x[1],req:x[2],exp:x[3],yb:x[4],eq:x[5],kpm:x[6],tier:x[7]}));
 const vipMaps=[
 ["初阶VIP聚宝洞",3,7000,110,30,8],["进阶VIP灵玉谷",5,26000,180,32,10],["精英VIP金砂河",7,56000,260,34,12],["中阶VIP万宝阁",9,90000,380,36,13],
@@ -119,6 +127,9 @@ const partners=[
 {id:"god_shanyu",name:"神：山雨（）",q:"god",w:.012,hidden:true,e:{power:.5,yb:.22,gear:.18,rare:.16,kill:.12}},
 {id:"god_ningxia",name:"神：柠夏",q:"god",w:.015,hidden:true,e:{exp:.55,rare:.14,gear:.1,offline:.25}},
 {id:"god_mangdan",name:"神：忙蛋",q:"god",w:.01,hidden:true,e:{power:.25,yb:.28,vipExp:.25,discount:.14,gear:.09}},
+{id:"god_kongshan",name:"神：空山",q:"god",w:.012,hidden:true,e:{power:.42,gate:.22,gear:.16,kill:.18,rare:.12}},
+{id:"god_banmeng",name:"神：半梦",q:"god",w:.012,hidden:true,e:{exp:.5,offline:.38,yb:.16,vipExp:.18,discount:.1}},
+{id:"god_jitao",name:"神：纪涛",q:"god",w:.012,hidden:true,e:{power:.36,exp:.28,yb:.18,rare:.14,kill:.16}},
 {id:"xia_yongkang",name:"夏永康",q:"black",w:.03,hidden:true,e:{exp:-.5,yb:-.5,power:-.5,gear:-.5,rare:-.5,kill:-.5,offline:-.5,sell:-.5,discount:-.5,vipExp:-.5,gate:-.5}},
 {id:"shanyu",name:"山雨",q:"supreme",w:.22,e:{power:.22,yb:.12,gear:.08}},
 {id:"ningxia",name:"柠夏",q:"legend",w:1.1,e:{exp:.18,rare:.04}},
@@ -147,26 +158,29 @@ const partners=[
 ];
 const effectNames={exp:"挂机经验",yb:"元宝收益",power:"总战力",gear:"装备掉率",rare:"高品质权重",kill:"击杀速度",offline:"离线收益",sell:"锻造石获取",discount:"强化费用减免",vipExp:"VIP经验获取",gate:"地图门槛战力"};
 const funnyEvents=["南黎挂机睡着了，怪物排队把经验放在脚边。","背包太满开始抗议，南黎冷静地打开整理。","VIP副本掉出万能碎片，门口保安说这是新福利。","风油大喊别打了，但副本次数还有。","丁文霞路过战场，顺手把怪物写进日志。","铁匠铺宣布：元宝别来，强化只认锻造石。"];
+const YUANBAO_GAIN_RATE=0.5;
 
 let S=load(),lastRender=0;
 
 function fresh(){
  const weapon=newEquip("weapon",1,1),armor=newEquip("armor",1,1);
- return{tab:"home",level:1,exp:0,yuanbao:0,yuanbao:0,forgeStones:0,guildToken:0,gift:false,doubleExpPills:0,tripleExpPills:0,fiveExpPills:0,tenExpPills:0,expBuffUntil:0,expBuffMult:1,doubleExpUntil:0,vipExp:0,vipTrialLow:0,vipTrialUntil:0,mapType:"main",map:0,unlockedMain:0,bossKilled:{},bossDate:"",bossUsed:{},fengyouDate:"",fengyouUsed:0,killFloat:0,inventory:[weapon,armor],equipped:{weapon:weapon.id,armor:armor.id,pants:null,shoes:null,helmet:null,jewelry:null,artifact:null},partners:{},carried:[],showAllPartners:false,universalShards:{normal:0,good:0,rare:0,epic:0,legend:0,myth:0,supreme:0,chroma:0,god:0,black:0,zenlegend:0}
-,logs:["欢迎来到南黎文字挂机传。"],tasks:[],taskDate:"",vipGifts:{},vipGiftVersion:2,partnerDraws:0,partnerLegendPity:0,partnerShanyuPity:0,equipDraws:0,equipLegendaryPity:0,equipColorPity:0,autoBreakBlue:false,autoBreakQuality:3,dropBreakQuality:-1,hideKillLog:false,last:Date.now(),quickDate:"",quickUsed:0,stats:{kills:0,boss:0},antiAddiction:false,antiHour:"",antiSeconds:0};
+ return{tab:"home",level:1,exp:0,yuanbao:0,forgeStones:0,guildToken:0,gift:false,compGift:false,doubleExpPills:0,tripleExpPills:0,fiveExpPills:0,tenExpPills:0,expBuffUntil:0,expBuffMult:1,doubleExpUntil:0,vipExp:0,vipTrialLow:0,vipTrialUntil:0,mapType:"main",map:0,unlockedMain:0,bossKilled:{},bossDate:"",bossUsed:{},fengyouDate:"",fengyouUsed:0,killFloat:0,inventory:[weapon,armor],equipped:{weapon:weapon.id,armor:armor.id,pants:null,shoes:null,helmet:null,jewelry:null,artifact:null},partners:{},carried:[],showAllPartners:false,universalShards:{normal:0,good:0,rare:0,epic:0,legend:0,myth:0,supreme:0,chroma:0,god:0,black:0,zenlegend:0}
+,logs:["欢迎来到南黎文字挂机传。"],tasks:[],taskDate:"",vipGifts:{},vipGiftVersion:2,partnerDraws:0,partnerLegendPity:0,partnerShanyuPity:0,equipDraws:0,equipLegendaryPity:0,equipColorPity:0,autoBreakBlue:false,autoBreakQuality:3,dropBreakQuality:-1,hideKillLog:false,last:Date.now(),quickDate:"",quickUsed:0,stats:{kills:0,boss:0},rankingRewardDate:"",rankingRewardRank:0,antiAddiction:false,antiHour:"",antiSeconds:0};
 }
 function normalize(data){
  const base=fresh(),r=Object.assign(base,data||{});
  r.equipped=Object.assign(base.equipped,r.equipped||{});r.bossKilled=r.bossKilled||{};r.stats=Object.assign({kills:0,boss:0},r.stats||{});r.unlockedMain=Number.isFinite(r.unlockedMain)?r.unlockedMain:Math.min(r.map||0,maps.length-1);
  r.forgeStones=r.forgeStones||0;
-r.guildToken=r.guildToken||0;r.partners=r.partners||{};r.carried=r.carried||[];r.logs=r.logs||[];r.vipTrialLow=r.vipTrialLow||0;r.vipTrialUntil=r.vipTrialUntil||0;r.tripleExpPills=r.tripleExpPills||0;r.fiveExpPills=r.fiveExpPills||0;r.tenExpPills=r.tenExpPills||0;r.expBuffUntil=r.expBuffUntil||0;r.expBuffMult=r.expBuffMult||1;r.tasks=r.tasks||[];r.taskDate=r.taskDate||"";r.showAllPartners=!!r.showAllPartners;
+r.guildToken=r.guildToken||0;r.compGift=!!r.compGift;r.partners=r.partners||{};r.carried=r.carried||[];r.logs=r.logs||[];r.vipTrialLow=r.vipTrialLow||0;r.vipTrialUntil=r.vipTrialUntil||0;r.tripleExpPills=r.tripleExpPills||0;r.fiveExpPills=r.fiveExpPills||0;r.tenExpPills=r.tenExpPills||0;r.expBuffUntil=r.expBuffUntil||0;r.expBuffMult=r.expBuffMult||1;r.tasks=r.tasks||[];r.taskDate=r.taskDate||"";r.showAllPartners=!!r.showAllPartners;
  r.bossDate=r.bossDate||"";r.bossUsed=typeof r.bossUsed==="object"&&r.bossUsed?r.bossUsed:{};r.fengyouDate=r.fengyouDate||"";r.fengyouUsed=r.fengyouUsed||0;r.vipGifts=r.vipGifts||{};r.partnerDraws=r.partnerDraws||0;r.partnerLegendPity=r.partnerLegendPity||0;r.partnerShanyuPity=r.partnerShanyuPity||0;r.equipDraws=r.equipDraws||0;r.equipLegendaryPity=r.equipLegendaryPity??r.equipLegendPity??0;r.equipColorPity=r.equipColorPity||0;r.autoBreakBlue=!!r.autoBreakBlue;
 r.autoBreakQuality=Number.isFinite(r.autoBreakQuality)?r.autoBreakQuality:(r.autoBreakBlue?3:-1);
 r.dropBreakQuality=Number.isFinite(r.dropBreakQuality)?r.dropBreakQuality:-1;
 r.hideKillLog=!!r.hideKillLog;
  r.universalShards=Object.assign(base.universalShards,r.universalShards||{});
  for(const k in r.partners){const p=r.partners[k];if(p.level&&!p.star)p.star=p.level;p.star=p.star||1;p.shards=p.shards||0}
- r.antiAddiction=!!r.antiAddiction;
+ r.rankingRewardDate=r.rankingRewardDate||"";
+r.rankingRewardRank=r.rankingRewardRank||0;
+r.antiAddiction=!!r.antiAddiction;
 r.antiHour=r.antiHour||"";
 r.antiSeconds=r.antiSeconds||0;
 return r;
@@ -247,7 +261,7 @@ function grantKills(kills,reason="挂机"){
  else if(S.mapType==="equip"){const raw=kills*map.eq*(1+b.gear);equipCount=Math.floor(raw)+(Math.random()<raw%1?1:0)}
  else if(S.mapType==="exp"){exp=map.exp*kills*(1+b.exp)*vip*expMult}
  else{exp=map.exp*kills*(1+b.exp)*vip*expMult;yb=map.yb*kills*(1+b.yb)*vip;const raw=kills*map.eq*(1+b.gear);equipCount=Math.floor(raw)+(Math.random()<raw%1?1:0)}
- gainExp(Math.floor(exp));S.yuanbao+=Math.floor(yb);S.stats.kills+=kills;
+gainExp(Math.floor(exp));yb=Math.floor(yb*YUANBAO_GAIN_RATE);S.yuanbao+=yb;S.stats.kills+=kills;
  let dropBreakCount=0,dropBreakValue=0;
 for(let i=0;i<Math.min(equipCount,110);i++){
  const item=newEquip(rollSlot(),map.tier,rollQuality(map.tier,"drop"));
@@ -267,16 +281,24 @@ if(!S.hideKillLog){
 }
  if(Math.random()<Math.min(.34,.06+kills/220))randomEvent();
 }
-function randomEvent(){const text=funnyEvents[Math.floor(Math.random()*funnyEvents.length)],roll=Math.random(),map=currentMap();log(`随机事件：${text}`);if(roll<.28){const r=Math.floor((map.yb||20)*(14+Math.random()*26)*(1+mods().yb));S.yuanbao+=r;log(`事件奖励：${fmt(r)} 元宝。`)}else if(roll<.49&&S.mapType!=="vip"){const r=Math.floor((map.exp||20)*(14+Math.random()*25)*(1+mods().exp));gainExp(r);log(`事件奖励：${fmt(r)} 经验。`)}else if(roll<.66&&S.mapType!=="vip"){const item=newEquip(rollSlot(),map.tier,rollQuality(map.tier,"drop"));S.inventory.push(item);log(`事件奖励：${item.name}。`)}else if(roll<.75){S.doubleExpPills++;log("事件奖励：双倍经验丹 +1。")}else if(roll<.84){grantRandomConsumable("事件奖励")}else if(roll<.92){S.vipTrialLow++;log("事件奖励：初阶VIP地图体验卡 +1。")}}
+function randomEvent(){const text=funnyEvents[Math.floor(Math.random()*funnyEvents.length)],roll=Math.random(),map=currentMap();log(`随机事件：${text}`);if(roll<.28){const r=Math.floor((map.yb||20)*(14+Math.random()*26)*(1+mods().yb)*YUANBAO_GAIN_RATE);S.yuanbao+=r;log(`事件奖励：${fmt(r)} 元宝。`)}else if(roll<.49&&S.mapType!=="vip"){const r=Math.floor((map.exp||20)*(14+Math.random()*25)*(1+mods().exp));gainExp(r);log(`事件奖励：${fmt(r)} 经验。`)}else if(roll<.66&&S.mapType!=="vip"){const item=newEquip(rollSlot(),map.tier,rollQuality(map.tier,"drop"));S.inventory.push(item);log(`事件奖励：${item.name}。`)}else if(roll<.75){S.doubleExpPills++;log("事件奖励：双倍经验丹 +1。")}else if(roll<.84){grantRandomConsumable("事件奖励")}else if(roll<.92){S.vipTrialLow++;log("事件奖励：初阶VIP地图体验卡 +1。")}}
 function checkTrial(){if(S.mapType==="vip"&&S.map===0&&S.vipTrialUntil&&Date.now()>=S.vipTrialUntil&&vipLevel()<vipMaps[0].vip){S.mapType="main";S.map=Math.min(S.unlockedMain,maps.length-1);S.vipTrialUntil=0;S.killFloat=0;log("初阶VIP体验通道已结束，自动返回主线地图。")}}
 function tick(seconds=1,offline=false){checkTrial();if(!offline&&S.antiAddiction){const key=currentHourKey();if(S.antiHour!==key){S.antiHour=key;S.antiSeconds=0}if(S.antiSeconds>=20*60)return;S.antiSeconds+=seconds;if(S.antiSeconds>20*60)seconds-=S.antiSeconds-20*60;}const map=currentMap();if(gatePower()<map.req)return;let kpm=map.kpm*(1+mods().kill);kpm*=1+Math.min(1.2,(gatePower()-map.req)/Math.max(1,map.req)*.2);if(offline)kpm*=1+mods().offline;S.killFloat+=kpm/60*seconds;const kills=Math.floor(S.killFloat);S.killFloat-=kills;if(kills>0)grantKills(kills,offline?"离线":"挂机")}
 function calcOffline(){const now=Date.now(),sec=Math.min(12*3600,Math.floor((now-(S.last||now))/1000));if(sec>60){tick(sec,true);log(`离线 ${Math.floor(sec/60)} 分钟收益已结算。`)}S.last=now}
 function claimGift(){if(S.gift)return;S.gift=true;S.yuanbao+=8888;S.doubleExpPills++;S.vipTrialLow+=3;S.forgeStones+=300;log("领取新手礼包：8888元宝、双倍经验丹×1、体验卡×3、锻造石×300。");render()}
+function claimCompGift(){
+ if(S.compGift)return log("补偿礼包已经领取过。");
+ S.compGift=true;
+ S.yuanbao+=500000;
+ addUniversalShard("black",1);
+ log("领取补偿礼包：500,000元宝、黑万能碎片×1。");
+ render();
+}
 function usePill(){if(S.doubleExpPills<=0)return log("没有双倍经验丹。");S.doubleExpPills--;S.doubleExpUntil=Math.max(Date.now(),S.doubleExpUntil||0)+30*60*1000;S.expBuffUntil=0;S.expBuffMult=1;log("使用双倍经验丹：30分钟内经验翻倍。");render()}
 function useMultiPill(mult){const key=mult===3?"tripleExpPills":mult===5?"fiveExpPills":"tenExpPills";if(S[key]<=0)return log(`没有${mult}倍经验丹。`);S[key]--;S.expBuffMult=mult;S.expBuffUntil=Date.now()+5*60*1000;log(`使用${mult}倍经验丹：5分钟内经验×${mult}。`);render()}
 function selectMap(type,index){const map=type==="vip"?vipMaps[index]:type==="equip"?equipDungeons[index]:type==="exp"?expDungeons[index]:maps[index];if(type==="main"&&index>S.unlockedMain)return log("需要先击败上一张地图的BOSS。");if(gatePower()<map.req)return log("战力不足，无法进入。");if(type==="vip"&&vipLevel()<map.vip)return log(`VIP等级不足，需要 V${map.vip}。`);S.mapType=type;S.map=index;S.killFloat=0;if(type!=="vip")S.vipTrialUntil=0;log(`开始在【${map.name}】挂机。`);render()}
 function enterTrialVip(){const map=vipMaps[0];if(S.vipTrialLow<=0)return log("没有初阶VIP地图体验卡。");if(gatePower()<map.req)return log("战力不足，无法进入初阶VIP体验通道。");S.vipTrialLow--;S.mapType="vip";S.map=0;S.killFloat=0;S.vipTrialUntil=Date.now()+10*60*1000;log("消耗1张初阶VIP地图体验卡，开启10分钟体验通道。");render()}
-function challengeBoss(index){resetDaily();if(bossUse(index)>=3)return log(`【${maps[index].boss}】今日挑战次数已用完。`);if(index>S.unlockedMain)return log("该地图尚未解锁。");const map=maps[index],req=bossPower(index);if(gatePower()<req)return log(`挑战失败：【${map.boss}】建议门槛战力为 ${fmt(req)}。`);S.bossUsed[index]=bossUse(index)+1;S.bossKilled[index]=true;S.stats.boss++;const expR=map.exp*70,ybR=map.yb*75,item=newEquip(rollSlot(),map.tier,rollQuality(map.tier,"drop"));gainExp(expR);S.yuanbao+=ybR;S.inventory.push(item);if(index===S.unlockedMain&&index<maps.length-1){S.unlockedMain++;log(`击败【${map.boss}】，解锁下一地图【${maps[index+1].name}】！`)}else log(`再次击败【${map.boss}】。`);log(`BOSS奖励：${fmt(expR)}经验、${fmt(ybR)}元宝、${item.name}。本地图今日次数 ${bossUse(index)}/3。`);render()}
+function challengeBoss(index){resetDaily();if(bossUse(index)>=3)return log(`【${maps[index].boss}】今日挑战次数已用完。`);if(index>S.unlockedMain)return log("该地图尚未解锁。");const map=maps[index],req=bossPower(index);if(gatePower()<req)return log(`挑战失败：【${map.boss}】建议门槛战力为 ${fmt(req)}。`);S.bossUsed[index]=bossUse(index)+1;S.bossKilled[index]=true;S.stats.boss++;const expR=map.exp*70,ybR=Math.floor(map.yb*75*YUANBAO_GAIN_RATE),item=newEquip(rollSlot(),map.tier,rollQuality(map.tier,"drop"));gainExp(expR);S.yuanbao+=ybR;S.inventory.push(item);if(index===S.unlockedMain&&index<maps.length-1){S.unlockedMain++;log(`击败【${map.boss}】，解锁下一地图【${maps[index+1].name}】！`)}else log(`再次击败【${map.boss}】。`);log(`BOSS奖励：${fmt(expR)}经验、${fmt(ybR)}元宝、${item.name}。本地图今日次数 ${bossUse(index)}/3。`);render()}
 function forgeCost(item){return Math.floor((12+item.tier*3)*qualities[item.q].m*Math.pow(item.lv+1,1.28)*(item.slot==="artifact"?.25:1)*(1-mods().discount))}
 function enhance(id){const item=equipById(id);if(!item)return;const cost=forgeCost(item);if(S.forgeStones<cost)return log(`锻造石不足，强化需要 ${fmt(cost)} 锻造石。`);S.forgeStones-=cost;item.lv++;if(item.bound)savePermArtifact(item);log(`${item.name} 强化到 +${item.lv}，消耗 ${fmt(cost)} 锻造石。`);render()}
 function sellValue(item){const q=qualities[item.q].m,tierPart=Math.pow(item.tier,0.92),enhancePart=1+Math.min(item.lv*.22,2.5),highPenalty=item.q>=7?.72:item.q>=5?.86:1;return Math.max(1,Math.floor(8*tierPart*q*enhancePart*highPenalty))}
@@ -357,15 +379,38 @@ function toggleHideKillLog(){
  render();
 }
 function quickGain(){resetDaily();if(S.quickUsed>=quickLimit())return log("今日一键收益次数不足。");S.quickUsed++;const seconds=S.mapType==="vip"?1440:7200;tick(seconds,false);log(S.mapType==="vip"?"当前在VIP副本，2小时收益缩减为1/5，实际结算24分钟收益。":"领取2小时挂机收益。");render()}
-function randomTask(){const taskSlots=slotKeys.filter(s=>s!=="artifact"),slot=taskSlots[Math.floor(Math.random()*taskSlots.length)],q=clamp(Math.floor(Math.random()*(Math.min(7,2+Math.floor(S.unlockedMain/4))+1)),0,qualities.length-1),tier=clamp(1+Math.floor(Math.random()*(Math.min(currentMap().tier,18)+1)),1,26),base=(q+1)*tier;return{id:makeId(),slot,q,tier,done:false,reward:{yb:Math.floor(base*(55+q*22)),exp:Math.floor(base*(currentMap().exp||30)*(6.5+q*.9)),vip:Math.floor(base*(8+q*2.2)),forge:Math.floor(base*(18+q*6)),pill:Math.random()<.28?(Math.random()<.65?3:Math.random()<.9?5:10):0}}}
+function randomTask(){const taskSlots=slotKeys.filter(s=>s!=="artifact"),slot=taskSlots[Math.floor(Math.random()*taskSlots.length)],q=clamp(Math.floor(Math.random()*(Math.min(7,2+Math.floor(S.unlockedMain/4))+1)),0,qualities.length-1),tier=clamp(1+Math.floor(Math.random()*(Math.min(currentMap().tier,18)+1)),1,26),base=(q+1)*tier;return{id:makeId(),slot,q,tier,done:false,reward:{yb:Math.floor(base*(55+q*22)*YUANBAO_GAIN_RATE),exp:Math.floor(base*(currentMap().exp||30)*(6.5+q*.9)),vip:Math.floor(base*(8+q*2.2)),forge:Math.floor(base*(18+q*6)),pill:Math.random()<.28?(Math.random()<.65?3:Math.random()<.9?5:10):0}}}
 function refreshTasks(force=false){const d=new Date().toDateString();if(!force&&S.tasks.length)return;S.taskDate=d;S.tasks=Array.from({length:4},randomTask);log("任务栏刷新了新的指定装备任务。")}
 function taskItemMatch(item,task){return !item.bound&&item.slot===task.slot&&item.q>=task.q&&item.tier>=task.tier}
 function completeTask(id){const task=S.tasks.find(t=>t.id===id);if(!task||task.done)return;const worn=equippedIds(),item=S.inventory.find(i=>!worn.has(i.id)&&taskItemMatch(i,task));if(!item)return log("任务所需装备不足，且不能提交已穿戴装备。");S.inventory=S.inventory.filter(i=>i.id!==item.id);task.done=true;S.yuanbao+=task.reward.yb;S.forgeStones+=task.reward.forge||0;gainExp(task.reward.exp);S.vipExp+=task.reward.vip;if(task.reward.pill===3)S.tripleExpPills++;if(task.reward.pill===5)S.fiveExpPills++;if(task.reward.pill===10)S.tenExpPills++;log(`完成任务，获得 ${fmt(task.reward.exp)}经验、${fmt(task.reward.yb)}元宝、${fmt(task.reward.forge||0)}锻造石。`);render()}
-function vipGift(level){const yb=[1888,6888,16888,38888,88888,188888,388888,688888,1088888,1888888,2888888,4288888,6888888,9888888,13888888,18888888][level]||1888;const shards={normal:0,good:0,rare:0,epic:0,legend:0,myth:0,supreme:0,chroma:0,god:0,black:0,zenlegend:0};if(level>=1)shards.normal+=10+level*2;if(level>=2)shards.good+=8+level;if(level>=4)shards.rare+=6+Math.floor(level/2);if(level>=6)shards.epic+=4+Math.floor(level/2);if(level>=8)shards.legend+=2+Math.floor((level-8)/2);if(level>=10)shards.myth+=1+Math.floor((level-10)/3);if(level>=13)shards.supreme+=1;if(level>=15)shards.god+=1;if(level>=15)shards.zenlegend+=1;return{yb,forge:level*level*500+2000,double:level<5?1:2,triple:level>=3?1+Math.floor(level/5):0,five:level>=7?1+Math.floor((level-7)/4):0,ten:level>=12?1:0,trial:level>=3?Math.floor(level/3):0,equip:level>=4?Math.floor(level/4):0,shards}}
+function vipGift(level){
+ const yb=Math.floor(([1888,6888,16888,38888,88888,188888,388888,688888,1088888,1888888,2888888,4288888,6888888,9888888,13888888,18888888][level]||1888)*YUANBAO_GAIN_RATE);
+ const shards={normal:0,good:0,rare:0,epic:0,legend:0,myth:0,supreme:0,chroma:0,god:0,black:0,zenlegend:0};
+ if(level>=1)shards.normal+=10+level*2;
+ if(level>=2)shards.good+=8+level;
+ if(level>=4)shards.rare+=6+Math.floor(level/2);
+ if(level>=6)shards.epic+=4+Math.floor(level/2);
+ if(level>=8)shards.legend+=2+Math.floor((level-8)/2);
+ if(level>=10)shards.myth+=1+Math.floor((level-10)/3);
+ if(level>=13)shards.supreme+=1;
+ if(level>=15)shards.god+=1;
+ if(level>=15)shards.zenlegend+=1;
+ return{
+  yb,
+  forge:level*level*500+2000,
+  double:level<5?1:2,
+  triple:level>=3?1+Math.floor(level/5):0,
+  five:level>=7?1+Math.floor((level-7)/4):0,
+  ten:level>=12?1:0,
+  trial:level>=3?Math.floor(level/3):0,
+  equip:level>=4?Math.floor(level/4):0,
+  shards
+ };
+}
 function vipGiftText(level){const g=vipGift(level),shardText=Object.entries(g.shards).filter(([,n])=>n>0).map(([q,n])=>`${shardName(q)}万能碎片×${n}`).join("、");return `${fmt(g.yb)}元宝、${fmt(g.forge)}锻造石${g.double?`、双倍经验丹×${g.double}`:""}${g.triple?`、三倍经验丹×${g.triple}`:""}${g.five?`、五倍经验丹×${g.five}`:""}${g.ten?`、十倍经验丹×${g.ten}`:""}${g.trial?`、体验卡×${g.trial}`:""}${g.equip?`、高阶装备×${g.equip}`:""}${shardText?`、${shardText}`:""}`}
 function claimVipGift(level){if(vipLevel()<level)return log(`VIP等级不足，无法领取 V${level} 礼包。`);if(S.vipGifts[level])return log(`V${level} 礼包已经领取过。`);const g=vipGift(level);S.vipGifts[level]=true;S.yuanbao+=g.yb;S.forgeStones+=g.forge;S.doubleExpPills+=g.double;S.tripleExpPills+=g.triple;S.fiveExpPills+=g.five;S.tenExpPills+=g.ten;S.vipTrialLow+=g.trial;for(const [q,n] of Object.entries(g.shards))if(n>0)addUniversalShard(q,n);for(let i=0;i<g.equip;i++){const tier=Math.max(4,level+6),q=level>=12?rollQuality(tier,"gacha"):Math.max(3,rollQuality(tier,"gacha"));S.inventory.push(newEquip(rollSlot(),tier,q))}log(`领取 V${level} VIP礼包。`);render()}
 function grantFengyouReward(id){const p=partnerObject(id);grantPartner(p,[]);log(`暴打风油通关大奖：获得炫彩伙伴【${p.name}】！`)}
-function challengeFengyou(){resetDaily();if(S.fengyouUsed>=5)return log("暴打风油今日通关机会已用完。");const req=50000;if(gatePower()<req)return log(`战力不足，暴打风油需要 ${fmt(req)} 门槛战力。`);S.fengyouUsed++;S.yuanbao+=8888;S.forgeStones+=888;gainExp(50000);if(Math.random()<.2){grantFengyouReward(Math.random()<.5?"fengyou":"dingwenxia")}else log(`暴打风油通关，获得 50,000经验、8,888元宝、888锻造石。本次未掉落炫彩伙伴。今日 ${S.fengyouUsed}/5。`);render()}
+function challengeFengyou(){resetDaily();if(S.fengyouUsed>=5)return log("暴打风油今日通关机会已用完。");const req=50000;if(gatePower()<req)return log(`战力不足，暴打风油需要 ${fmt(req)} 门槛战力。`);S.fengyouUsed++;S.yuanbao+=4444;S.forgeStones+=888;gainExp(50000);if(Math.random()<.2){grantFengyouReward(Math.random()<.5?"fengyou":"dingwenxia")}else log(`暴打风油通关，获得 50,000经验、4,444元宝、888锻造石。本次未掉落炫彩伙伴。今日 ${S.fengyouUsed}/5。`);render()}
 
 let PERM=(()=>{try{return JSON.parse(localStorage.getItem(PERM_KEY))||{artifactClaimed:false,artifact:null}}catch{return{artifactClaimed:false,artifact:null}}})();
 function savePerm(){localStorage.setItem(PERM_KEY,JSON.stringify(PERM))}
@@ -381,6 +426,41 @@ function exchangeGuildToken(){
  S.universalShards.black-=5;
  S.guildToken=(S.guildToken||0)+1;
  log("消耗5个黑万能碎片，兑换帮派令×1。");
+ render();
+}
+
+function claimRankingReward(rank){
+ const d=new Date().toDateString();
+
+ if(S.rankingRewardDate===d){
+  log(`今日排行奖励已经领取过，领取名次：第${S.rankingRewardRank}名。`);
+  return;
+ }
+
+ if(rank<1||rank>5){
+  log("你不在排行榜前五，无法领取每日排行奖励。");
+  return;
+ }
+
+ const rewards=[
+  {yb:30000,forge:12000,black:2,god:1},
+  {yb:20000,forge:9000,black:1,god:1},
+  {yb:12000,forge:7000,black:1,god:0},
+  {yb:8000,forge:5000,black:0,god:0},
+  {yb:5000,forge:3000,black:0,god:0}
+ ];
+
+ const r=rewards[rank-1];
+
+ S.yuanbao+=r.yb;
+ S.forgeStones+=r.forge;
+ if(r.black)addUniversalShard("black",r.black);
+ if(r.god)addUniversalShard("god",r.god);
+
+ S.rankingRewardDate=d;
+ S.rankingRewardRank=rank;
+
+ log(`领取每日排行第${rank}名奖励：${fmt(r.yb)}元宝、${fmt(r.forge)}锻造石${r.black?`、黑万能碎片×${r.black}`:""}${r.god?`、神万能碎片×${r.god}`:""}。`);
  render();
 }
 function currentHourKey(){
@@ -464,7 +544,7 @@ function homeHTML(vip,previous,next){
  <div class="two"><div class="panel"><h3>携带伙伴</h3>${S.carried.length?S.carried.map(id=>{const p=partnerObject(id),o=S.partners[id];return `<p><span class="${partnerQual[p.q].c}">[${partnerQual[p.q].name}] ${p.name} ${o.star}星</span><br><span class="muted">${effectText(p,o.star)}</span></p>`}).join(""):"<p class='muted'>暂无携带伙伴。</p>"}</div><div class="panel"><h3>当前伙伴总加成</h3><p>经验 +${(b.exp*100).toFixed(1)}%　元宝 +${(b.yb*100).toFixed(1)}%<br>战力 +${(b.power*100).toFixed(1)}%　装备掉率 +${(b.gear*100).toFixed(1)}%<br>高品质权重 +${(b.rare*100).toFixed(1)}%　击杀速度 +${(b.kill*100).toFixed(1)}%<br>离线收益 +${(b.offline*100).toFixed(1)}%　强化费用 -${(b.discount*100).toFixed(1)}%</p></div></div>${taskSummaryHTML()}${logHTML(35)}`;
 }
 function mapHTML(){return `<div class="panel"><h2>主线地图</h2><p class="muted">每张地图BOSS挑战次数独立计算，每张地图每日最多3次。</p><div class="grid">${maps.map((m,i)=>{const locked=i>S.unlockedMain,k=!!S.bossKilled[i],used=bossUse(i);return `<div class="card ${S.mapType==="main"&&S.map===i?"selected":""}"><h3>${i+1}. ${m.name}</h3><p>挂机门槛：${fmt(m.req)}<br>每怪经验：${fmt(m.exp)}　元宝：${fmt(m.yb)}<br>装备掉率：${(m.eq*100).toFixed(1)}%<br>BOSS：${m.boss}<br>BOSS门槛：${fmt(bossPower(i))}<br>本地图今日BOSS次数：${used}/3<br>${k?"<span class='good'>已击败</span>":"<span class='bad'>尚未击败</span>"}</p><button onclick="Game.selectMap('main',${i})" ${locked||gatePower()<m.req?"disabled":""}>进入挂机</button><button class="goldBtn" onclick="Game.challengeBoss(${i})" ${locked||gatePower()<bossPower(i)||used>=3?"disabled":""}>挑战BOSS</button></div>`}).join("")}</div></div>`}
-function dungeonHTML(){return `<div class="panel"><h2>特殊副本：暴打风油</h2><p class="muted">每天5次通关机会。每次通关有20%概率获得炫彩品质伙伴：风油 或 丁文霞。</p><div class="card selected"><h3>暴打风油</h3><p>战力门槛：50,000<br>今日通关：${S.fengyouUsed}/5<br>通关奖励：50,000经验、8,888元宝、888锻造石<br>额外掉落：20%获得炫彩伙伴风油/丁文霞</p><button class="goldBtn" onclick="Game.challengeFengyou()" ${S.fengyouUsed>=5||gatePower()<50000?"disabled":""}>暴打一次</button></div></div>
+function dungeonHTML(){return `<div class="panel"><h2>特殊副本：暴打风油</h2><p class="muted">每天5次通关机会。每次通关有20%概率获得炫彩品质伙伴：风油 或 丁文霞。</p><div class="card selected"><h3>暴打风油</h3><p>战力门槛：50,000<br>今日通关：${S.fengyouUsed}/5<br>通关奖励：50,000经验、4444元宝、888锻造石<br>额外掉落：20%获得炫彩伙伴风油/丁文霞</p><button class="goldBtn" onclick="Game.challengeFengyou()" ${S.fengyouUsed>=5||gatePower()<50000?"disabled":""}>暴打一次</button></div></div>
  <div class="panel"><h2>VIP地图</h2><p class="muted">新增多个VIP副本，只掉落元宝和随机万能碎片。</p><div class="grid">${vipMaps.map((m,i)=>`<div class="card ${S.mapType==="vip"&&S.map===i?"selected":""}"><h3>${m.name}</h3><p>需要 V${m.vip}<br>战力门槛：${fmt(m.req)}<br>每怪元宝：${fmt(m.yb)}<br>${i===0?`体验卡：${S.vipTrialLow}`:""}</p><button onclick="Game.selectMap('vip',${i})" ${gatePower()<m.req?"disabled":""}>VIP等级进入</button>${i===0?`<button class="goldBtn" onclick="Game.enterTrialVip()" ${gatePower()<m.req||S.vipTrialLow<=0?"disabled":""}>体验通道10分钟</button>`:""}</div>`).join("")}</div></div>
  <div class="panel"><h2>装备副本</h2><div class="grid">${equipDungeons.map((m,i)=>`<div class="card ${S.mapType==="equip"&&S.map===i?"selected":""}"><h3>${m.name}</h3><p>战力门槛：${fmt(m.req)}<br>装备掉率：${(m.eq*100).toFixed(1)}%<br>副本阶级：${m.tier}</p><button onclick="Game.selectMap('equip',${i})" ${gatePower()<m.req?"disabled":""}>进入装备副本</button></div>`).join("")}</div></div>
  <div class="panel"><h2>经验副本</h2><div class="grid">${expDungeons.map((m,i)=>`<div class="card ${S.mapType==="exp"&&S.map===i?"selected":""}"><h3>${m.name}</h3><p>战力门槛：${fmt(m.req)}<br>每怪经验：${fmt(m.exp)}<br>副本阶级：${m.tier}</p><button onclick="Game.selectMap('exp',${i})" ${gatePower()<m.req?"disabled":""}>进入经验副本</button></div>`).join("")}</div></div>`}
@@ -546,7 +626,7 @@ function guildHTML(){
  <p id="guildStatus" class="muted"></p>
  </div>`;
 }
-function giftHTML(){return `<div class="panel"><h2>礼包中心</h2><p class="muted">兑换码礼包放在独立页面，不受主页动态刷新影响。输入指定口令可获得唯一伴生法器，重置游戏不会清空。</p><div class="row"><input id="codeGiftInput" placeholder="请输入兑换码"><button class="goldBtn" onclick="Game.claimCodeGift()" ${PERM.artifactClaimed?"disabled":""}>领取兑换码礼包</button></div><p>${PERM.artifactClaimed?"<span class='good'>已领取：炫彩传奇·山雨牛逼伴生法器</span>":"口令提示：山雨牛逼"}</p></div><div class="panel"><h2>新手礼包</h2><p>8888元宝、双倍经验丹×1、初阶VIP地图体验卡×3、锻造石×300。</p><button class="goldBtn" onclick="Game.claimGift()" ${S.gift?"disabled":""}>${S.gift?"已领取":"领取新手礼包"}</button></div>`}
+function giftHTML(){return `<div class="panel"><h2>礼包中心</h2><p class="muted">兑换码礼包放在独立页面，不受主页动态刷新影响。输入指定口令可获得唯一伴生法器，重置游戏不会清空。</p><div class="row"><input id="codeGiftInput" placeholder="请输入兑换码"><button class="goldBtn" onclick="Game.claimCodeGift()" ${PERM.artifactClaimed?"disabled":""}>领取兑换码礼包</button></div><p>${PERM.artifactClaimed?"<span class='good'>已领取：炫彩传奇·山雨牛逼伴生法器</span>":"口令提示：山雨牛逼"}</p></div><div class="panel"><h2>新手礼包</h2><p>8888元宝、双倍经验丹×1、初阶VIP地图体验卡×3、锻造石×300。</p><button class="goldBtn" onclick="Game.claimGift()" ${S.gift?"disabled":""}>${S.gift?"已领取":"领取新手礼包"}</button></div><div class="panel"><h2>补偿礼包</h2><p>500,000元宝、黑万能碎片×1。</p><button class="goldBtn" onclick="Game.claimCompGift()" ${S.compGift?"disabled":""}>${S.compGift?"已领取":"领取补偿礼包"}</button></div>`}
 
 syncArtifact();refreshTasks();calcOffline();render();
 setInterval(()=>{
@@ -558,7 +638,7 @@ setInterval(()=>{
  localStorage.setItem(SAVE_KEY,JSON.stringify(S));
 },1000);
 
-return{tab,save,reset,toggleAntiAddiction,exchangeGuildToken,claimCodeGift,claimGift,usePill,useMultiPill,quickGain,selectMap,enterTrialVip,challengeBoss,challengeFengyou,wear,enhance,sell,sellUnequipped,bestEquip,sortInventory,drawEquip,drawPartner,scratchCard,carry,togglePartnerView,toggleAutoBreak,setAutoBreakQuality,setDropBreakQuality,toggleHideKillLog,sortPartners,claimVipGift,exchangeUniversalShard,exchangeAllUniversalShard,breakPartnerShards,useUniversalShard,refreshTasks:()=>{refreshTasks(true);render()},completeTask,addSystemLog:(text)=>{log(text);if(!shouldSkipAutoRender())render();},
+return{tab,save,reset,toggleAntiAddiction,exchangeGuildToken,claimCodeGift,claimGift,claimCompGift,claimRankingReward,usePill,useMultiPill,quickGain,selectMap,enterTrialVip,challengeBoss,challengeFengyou,wear,enhance,sell,sellUnequipped,bestEquip,sortInventory,drawEquip,drawPartner,scratchCard,carry,togglePartnerView,toggleAutoBreak,setAutoBreakQuality,setDropBreakQuality,toggleHideKillLog,sortPartners,claimVipGift,exchangeUniversalShard,exchangeAllUniversalShard,breakPartnerShards,useUniversalShard,refreshTasks:()=>{refreshTasks(true);render()},completeTask,addSystemLog:(text)=>{log(text);if(!shouldSkipAutoRender())render();},
 getPower:()=>power(),
 getLevel:()=>S.level,
 getVip:()=>vipLevel(),
@@ -1101,12 +1181,37 @@ async leaveGuild() {
     }
   },
 
+async claimDailyRankingReward() {
+  if (!this.token || !this.username) {
+    alert("请先登录账号");
+    return;
+  }
+
+  const res = await fetch("/api/ranking");
+  const rows = await res.json();
+
+  const top5 = rows.slice(0,5);
+  const index = top5.findIndex(r => r.username === this.username);
+
+  if (index < 0) {
+    alert("你不在排行榜前五，无法领取每日排行奖励");
+    return;
+  }
+
+  const rank = index + 1;
+
+  if (typeof Game !== "undefined" && Game.claimRankingReward) {
+    Game.claimRankingReward(rank);
+    await this.uploadSave();
+  }
+},
   async loadRanking() {
     const box = document.getElementById("rankingBox");
     if (!box) return;
 
     const res = await fetch("/api/ranking");
-    const rows = await res.json();
+    const allRows = await res.json();
+const rows = allRows.slice(0,5);
 
     if (!rows.length) {
       box.innerHTML = "<p class='muted'>暂无排行榜数据</p>";

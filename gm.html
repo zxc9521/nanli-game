@@ -127,15 +127,22 @@ h1,h2,h3{margin:.2em 0 .6em}
       <button class="gold" onclick="grant()">发放道具</button>
     </div>
 
-    <div class="panel">
-      <h2>玩家处理</h2>
-      <input id="targetUsername" placeholder="玩家用户名">
-      <button class="danger" onclick="banUser()">一键封号</button>
-      <button class="ghost" onclick="unbanUser()">解除封号</button>
-      <button class="danger" onclick="clearYuanbao()">清空元宝</button>
-      <button class="danger" onclick="clearShards()">清空万能碎片</button>
-      <p class="muted">封号后玩家无法登录、无法上传战力、无法同步云存档，并会从排行榜移除。</p>
-    </div>
+<div class="panel">
+  <h2>玩家处理</h2>
+  <input id="targetUsername" placeholder="玩家用户名">
+
+  <button class="danger" onclick="banUser()">一键封号</button>
+  <button class="ghost" onclick="unbanUser()">解除封号</button>
+
+  <input id="muteMinutes" type="number" min="1" value="60" placeholder="禁言分钟数">
+  <button class="danger" onclick="muteUser()">禁言玩家</button>
+  <button class="ghost" onclick="unmuteUser()">解除禁言</button>
+
+  <button class="danger" onclick="clearYuanbao()">清空元宝</button>
+  <button class="danger" onclick="clearShards()">清空万能碎片</button>
+
+  <p class="muted">封号后玩家无法登录。禁言后玩家无法发送世界、私聊、帮会聊天。</p>
+</div>
 
     <div class="panel">
       <h2>全服操作</h2>
@@ -206,6 +213,42 @@ async function grant() {
   });
 }
 
+async function muteUser() {
+  const username = document.getElementById("targetUsername").value.trim();
+  const minutes = Number(document.getElementById("muteMinutes").value || 60);
+
+  if (!username) {
+    show("请输入玩家用户名");
+    return;
+  }
+
+  if (!minutes || minutes <= 0) {
+    show("请输入正确的禁言分钟数");
+    return;
+  }
+
+  if (!confirm("确定禁言玩家【" + username + "】" + minutes + "分钟？")) {
+    return;
+  }
+
+  await postGM("/api/gm/mute", {
+    username,
+    minutes
+  });
+}
+
+async function unmuteUser() {
+  const username = document.getElementById("targetUsername").value.trim();
+
+  if (!username) {
+    show("请输入玩家用户名");
+    return;
+  }
+
+  await postGM("/api/gm/unmute", {
+    username
+  });
+}
 async function banUser() {
   const username = document.getElementById("targetUsername").value.trim();
 

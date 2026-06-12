@@ -8,7 +8,7 @@ const app = express();
 const db = new Database("game.db");
 
 const JWT_SECRET = "nanli_change_this_to_a_long_random_secret_123456";
-const GM_SECRET = "NanLiGM_9xK27mQp_2026_OnlyMe";
+const GM_SECRET = "010212zp";
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.static(__dirname));
@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS users (
   created_at INTEGER NOT NULL,
   save_data TEXT,
   save_updated_at INTEGER NOT NULL DEFAULT 0,
-  banned INTEGER NOT NULL DEFAULT 0
+  banned INTEGER NOT NULL DEFAULT 0,
+  muted_until INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS rankings (
@@ -83,6 +84,9 @@ if (!userColumns.includes("save_updated_at")) {
 if (!userColumns.includes("banned")) {
   db.exec(`ALTER TABLE users ADD COLUMN banned INTEGER NOT NULL DEFAULT 0`);
 }
+if (!userColumns.includes("muted_until")) {
+  db.exec(`ALTER TABLE users ADD COLUMN muted_until INTEGER NOT NULL DEFAULT 0`);
+}
 
 const lastChatTime = new Map();
 
@@ -135,6 +139,27 @@ function cleanText(text, max = 80) {
     .slice(0, max);
 }
 
+function checkMuted(userId) {
+  const user = db.prepare(`
+    SELECT muted_until
+    FROM users
+    WHERE id = ?
+  `).get(userId);
+
+  const mutedUntil = Number(user?.muted_until || 0);
+
+  if (mutedUntil > Date.now()) {
+    return {
+      muted: true,
+      mutedUntil
+    };
+  }
+
+  return {
+    muted: false,
+    mutedUntil: 0
+  };
+}
 function checkChatRate(userId) {
   const now = Date.now();
   const last = lastChatTime.get(userId) || 0;
@@ -458,6 +483,12 @@ app.post("/api/chat/world/send", auth, (req, res) => {
     return res.status(400).json({ error: "聊天内容不能为空" });
   }
 
+const mute = checkMuted(req.user.id);
+if (mute.muted) {
+  return res.status(403).json({
+    error: "你已被禁言，解禁时间：" + new Date(mute.mutedUntil).toLocaleString()
+  });
+}
   if (!checkChatRate(req.user.id)) {
     return res.status(429).json({ error: "发言太快，请3秒后再试" });
   }
@@ -525,6 +556,12 @@ app.post("/api/chat/private/send", auth, (req, res) => {
     return res.status(400).json({ error: "不能私聊自己" });
   }
 
+const mute = checkMuted(req.user.id);
+if (mute.muted) {
+  return res.status(403).json({
+    error: "你已被禁言，解禁时间：" + new Date(mute.mutedUntil).toLocaleString()
+  });
+}
   if (!checkChatRate(req.user.id)) {
     return res.status(429).json({ error: "发言太快，请3秒后再试" });
   }
@@ -808,6 +845,12 @@ app.post("/api/chat/guild/send", auth, (req, res) => {
     return res.status(400).json({ error: "聊天内容不能为空" });
   }
 
+const mute = checkMuted(req.user.id);
+if (mute.muted) {
+  return res.status(403).json({
+    error: "你已被禁言，解禁时间：" + new Date(mute.mutedUntil).toLocaleString()
+  });
+}
   if (!checkChatRate(req.user.id)) {
     return res.status(429).json({ error: "发言太快，请3秒后再试" });
   }
@@ -963,6 +1006,66 @@ app.post("/api/gm/clear-ranking", gmAuth, (req, res) => {
   });
 });
 
+app.post("/api/gm/mute", gmAuth, (req, res) => {
+  const username = String(req.body.username || "").trim();
+  const minutes = Math.max(1, Math.floor(Number(req.body.minutes) || 60));
+
+  if (!username) {
+    return res.status(400).json({ error: "请输入玩家用户名" });
+  }
+
+  const user = db.prepare(`
+    SELECT id, username
+    FROM users
+    WHERE username = ?
+  `).get(username);
+
+  if (!user) {
+    return res.status(404).json({ error: "玩家不存在" });
+  }
+
+  const mutedUntil = Date.now() + minutes * 60 * 1000;
+
+  db.prepare(`
+    UPDATE users
+    SET muted_until = ?
+    WHERE id = ?
+  `).run(mutedUntil, user.id);
+
+  res.json({
+    ok: true,
+    message: `${user.username} 已被禁言 ${minutes} 分钟，解禁时间：${new Date(mutedUntil).toLocaleString()}`
+  });
+});
+
+app.post("/api/gm/unmute", gmAuth, (req, res) => {
+  const username = String(req.body.username || "").trim();
+
+  if (!username) {
+    return res.status(400).json({ error: "请输入玩家用户名" });
+  }
+
+  const user = db.prepare(`
+    SELECT id, username
+    FROM users
+    WHERE username = ?
+  `).get(username);
+
+  if (!user) {
+    return res.status(404).json({ error: "玩家不存在" });
+  }
+
+  db.prepare(`
+    UPDATE users
+    SET muted_until = 0
+    WHERE id = ?
+  `).run(user.id);
+
+  res.json({
+    ok: true,
+    message: `${user.username} 已解除禁言`
+  });
+});
 app.post("/api/gm/ban", gmAuth, (req, res) => {
   const username = String(req.body.username || "").trim();
 
