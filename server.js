@@ -904,10 +904,10 @@ app.post("/api/ranking", auth, (req, res) => {
   `).run(req.user.id, req.user.username, power, level, vip, Date.now());
 
   db.prepare(`
-    UPDATE arena_players
-    SET power = ?, level = ?, vip = ?, updated_at = ?
-    WHERE user_id = ?
-  `).run(power, level, vip, Date.now(), req.user.id);
+  UPDATE arena_players
+  SET level = ?, vip = ?, updated_at = ?
+  WHERE user_id = ?
+`).run(level, vip, Date.now(), req.user.id);
 
   res.json({ ok: true });
 });
@@ -1068,15 +1068,15 @@ app.post("/api/arena/challenge", auth, (req, res) => {
       throw new Error("请先配置竞技场技能");
     }
 
-    if (attacker.arena_date !== d) {
-       db.prepare(`
+if (attacker.arena_date !== d) {
+  db.prepare(`
     UPDATE arena_players
-    SET level = ?, vip = ?, updated_at = ?
+    SET arena_date = ?, arena_used = 0
     WHERE user_id = ?
-  `).run(level, vip, Date.now(), req.user.id);
-      attacker.arena_date = d;
-      attacker.arena_used = 0;
-    }
+  `).run(d, req.user.id);
+  attacker.arena_date = d;
+  attacker.arena_used = 0;
+}
 
     if (attacker.arena_used >= 10) {
       throw new Error("今日竞技场挑战次数已用完");
