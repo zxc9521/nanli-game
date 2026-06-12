@@ -410,6 +410,20 @@ function toggleAntiAddiction(){
  }
  render();
 }
+let composingInput=false;
+document.addEventListener("compositionstart",()=>{
+ composingInput=true;
+});
+document.addEventListener("compositionend",()=>{
+ composingInput=false;
+});
+function isEditingInput(){
+ const el=document.activeElement;
+ if(composingInput)return true;
+ if(!el)return false;
+ const tag=el.tagName;
+ return tag==="INPUT"||tag==="TEXTAREA"||tag==="SELECT";
+}
 function tab(name){S.tab=name;render()}
 
 function render(){
@@ -514,9 +528,14 @@ function guildHTML(){
 function giftHTML(){return `<div class="panel"><h2>礼包中心</h2><p class="muted">兑换码礼包放在独立页面，不受主页动态刷新影响。输入指定口令可获得唯一伴生法器，重置游戏不会清空。</p><div class="row"><input id="codeGiftInput" placeholder="请输入兑换码"><button class="goldBtn" onclick="Game.claimCodeGift()" ${PERM.artifactClaimed?"disabled":""}>领取兑换码礼包</button></div><p>${PERM.artifactClaimed?"<span class='good'>已领取：炫彩传奇·山雨牛逼伴生法器</span>":"口令提示：山雨牛逼"}</p></div><div class="panel"><h2>新手礼包</h2><p>8888元宝、双倍经验丹×1、初阶VIP地图体验卡×3、锻造石×300。</p><button class="goldBtn" onclick="Game.claimGift()" ${S.gift?"disabled":""}>${S.gift?"已领取":"领取新手礼包"}</button></div>`}
 
 syncArtifact();refreshTasks();calcOffline();render();
-setInterval(()=>{tick(1,false);S.last=Date.now();if(Date.now()-lastRender>1200)render();localStorage.setItem(SAVE_KEY,JSON.stringify(S))},1000);
+setInterval(()=>{
+ tick(1,false);
+ S.last=Date.now();
+ if(Date.now()-lastRender>1200&&!isEditingInput())render();
+ localStorage.setItem(SAVE_KEY,JSON.stringify(S));
+},1000);
 
-return{tab,save,reset,toggleAntiAddiction,exchangeGuildToken,claimCodeGift,claimGift,usePill,useMultiPill,quickGain,selectMap,enterTrialVip,challengeBoss,challengeFengyou,wear,enhance,sell,sellUnequipped,bestEquip,sortInventory,drawEquip,drawPartner,scratchCard,carry,togglePartnerView,toggleAutoBreak,setAutoBreakQuality,setDropBreakQuality,toggleHideKillLog,sortPartners,claimVipGift,exchangeUniversalShard,exchangeAllUniversalShard,breakPartnerShards,useUniversalShard,refreshTasks:()=>{refreshTasks(true);render()},completeTask,addSystemLog:(text)=>{log(text);render();},
+return{tab,save,reset,toggleAntiAddiction,exchangeGuildToken,claimCodeGift,claimGift,usePill,useMultiPill,quickGain,selectMap,enterTrialVip,challengeBoss,challengeFengyou,wear,enhance,sell,sellUnequipped,bestEquip,sortInventory,drawEquip,drawPartner,scratchCard,carry,togglePartnerView,toggleAutoBreak,setAutoBreakQuality,setDropBreakQuality,toggleHideKillLog,sortPartners,claimVipGift,exchangeUniversalShard,exchangeAllUniversalShard,breakPartnerShards,useUniversalShard,refreshTasks:()=>{refreshTasks(true);render()},completeTask,addSystemLog:(text)=>{log(text);if(!isEditingInput())render();},
 getPower:()=>power(),
 getLevel:()=>S.level,
 getVip:()=>vipLevel(),
@@ -775,8 +794,12 @@ async loadWorldChat() {
   });
 
   const rows = await res.json().catch(() => []);
-  box.innerHTML = rows.map(r => `<p><span class="gold">[世界]</span> ${this.timeText(r.created_at)} <b>${r.from_username}</b>：${r.text}</p>`).join("");
-  box.scrollTop = box.scrollHeight;
+  const html = rows.map(r => `<p><span class="gold">[世界]</span> ${this.timeText(r.created_at)} <b>${r.from_username}</b>：${r.text}</p>`).join("");
+if(box.dataset.lastHtml!==html){
+ box.innerHTML=html;
+ box.dataset.lastHtml=html;
+ box.scrollTop=box.scrollHeight;
+}
 },
 
 async sendPrivateChat() {
@@ -823,8 +846,12 @@ async loadPrivateChat() {
     return;
   }
 
-  box.innerHTML = rows.map(r => `<p><span class="gold">[私聊]</span> ${this.timeText(r.created_at)} <b>${r.from_username}</b> → <b>${r.to_username}</b>：${r.text}</p>`).join("");
-  box.scrollTop = box.scrollHeight;
+const html = rows.map(r => `<p><span class="gold">[私聊]</span> ${this.timeText(r.created_at)} <b>${r.from_username}</b> → <b>${r.to_username}</b>：${r.text}</p>`).join("");
+if(box.dataset.lastHtml!==html){
+ box.innerHTML=html;
+ box.dataset.lastHtml=html;
+ box.scrollTop=box.scrollHeight;
+}
 },
 
 async sendGuildChat() {
@@ -864,8 +891,12 @@ async loadGuildChat() {
     return;
   }
 
-  box.innerHTML = data.map(r => `<p><span class="gold">[帮会]</span> ${this.timeText(r.created_at)} <b>${r.from_username}</b>：${r.text}</p>`).join("");
-  box.scrollTop = box.scrollHeight;
+const html = data.map(r => `<p><span class="gold">[帮会]</span> ${this.timeText(r.created_at)} <b>${r.from_username}</b>：${r.text}</p>`).join("");
+if(box.dataset.lastHtml!==html){
+ box.innerHTML=html;
+ box.dataset.lastHtml=html;
+ box.scrollTop=box.scrollHeight;
+}
 },
 
 async loadGuildInfo() {
