@@ -681,6 +681,8 @@ function simulateArenaBattle(attacker, defender) {
   const aScore = arenaSkillScore(aSkills, dSkills);
   const dScore = arenaSkillScore(dSkills, aSkills);
 
+  // 竞技场不看战力、不看等级、不看VIP
+  // 所有人基础属性完全一样
   const aBase = 100000;
   const dBase = 100000;
 
