@@ -514,11 +514,11 @@ function tab(name){
  setTimeout(()=>{
   if(typeof Online==="undefined")return;
 
-  if(name==="chat"){
+if(name==="chat"){
    Online.loadWorldChat();
-   Online.loadPrivateChat();
+   Online.loadPrivateInbox();
    Online.loadGuildChat();
-  }
+}
 
   if(name==="guild"){
    Online.loadGuildInfo();
@@ -575,13 +575,17 @@ function chatHTML(){
    </div>
   </div>
   <div class="panel">
-   <h3>私聊</h3>
-   <input id="privateTarget" placeholder="私聊对象用户名">
-   <div id="privateChatBox" class="log" style="height:220px"></div>
+   <h3>私聊收件箱</h3>
+   <p class="muted">这里会显示所有与你有关的私聊。点击消息里的玩家名可以快速设为回复对象。</p>
+
+   <input id="privateTarget" placeholder="回复对象用户名">
+   <div id="privateChatBox" class="log" style="height:260px"></div>
+
    <div class="row">
     <input id="privateChatInput" placeholder="输入私聊内容，最多80字">
     <button onclick="Online.sendPrivateChat()">发送私聊</button>
-    <button class="ghost" onclick="Online.loadPrivateChat()">刷新私聊</button>
+    <button class="ghost" onclick="Online.loadPrivateInbox()">刷新收件箱</button>
+    <button class="ghost" onclick="Online.loadPrivateChat()">只看当前对象</button>
    </div>
   </div>
  </div>
@@ -864,6 +868,18 @@ timeText(t) {
     return "";
   }
 },
+escapeHTML(text) {
+  return String(text ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+},
+selectPrivateTarget(username) {
+  const input = document.getElementById("privateTarget");
+  if (input) input.value = username;
+},
 
 async sendWorldChat() {
   if (!this.token) return this.chatStatus("请先登录");
@@ -926,37 +942,100 @@ async sendPrivateChat() {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) return this.chatStatus(data.error || "发送失败");
 
-  input.value = "";
-  this.chatStatus("私聊已发送");
-  this.loadPrivateChat();
+input.value = "";
+this.chatStatus("私聊已发送");
+this.loadPrivateInbox();
 },
 
-async loadPrivateChat() {
+async loadPrivateInbox() {
   if (!this.token) return;
-  const target = document.getElementById("privateTarget")?.value.trim();
-  const box = document.getElementById("privateChatBox");
-  if (!box || !target) return;
 
-  const res = await fetch("/api/chat/private/list?with=" + encodeURIComponent(target), {
+  const box = document.getElementById("privateChatBox");
+  if (!box) return;
+
+  const res = await fetch("/api/chat/private/inbox", {
     headers: {
       "Authorization": "Bearer " + this.token
     }
   });
 
   const rows = await res.json().catch(() => []);
+
+  if (!res.ok) {
+    box.innerHTML = "<p class='bad'>读取私聊收件箱失败</p>";
+    return;
+  }
+
+  if (!rows.length) {
+    box.innerHTML = "<p class='muted'>暂无私聊消息。</p>";
+    return;
+  }
+
+  const html = rows.map(r => {
+    const isMe = r.from_username === this.username;
+    const other = isMe ? r.to_username : r.from_username;
+    const otherSafe = this.escapeHTML(other);
+    const text = this.escapeHTML(r.text);
+
+    const direction = isMe
+      ? `<span class="good">我</span> → <button class="ghost" style="width:auto;padding:2px 7px;margin:0" onclick="Online.selectPrivateTarget('${otherSafe}')">${otherSafe}</button>`
+      : `<button class="ghost" style="width:auto;padding:2px 7px;margin:0" onclick="Online.selectPrivateTarget('${otherSafe}')">${otherSafe}</button> → <span class="gold">我</span>`;
+
+    return `
+      <p>
+        <span class="gold">[私聊]</span>
+        ${this.timeText(r.created_at)}
+        ${direction}：
+        ${text}
+      </p>
+    `;
+  }).join("");
+
+  if (box.dataset.lastHtml !== html) {
+    box.innerHTML = html;
+    box.dataset.lastHtml = html;
+    box.scrollTop = box.scrollHeight;
+  }
+},
+async loadPrivateChat() {
+  if (!this.token) return;
+  const target = document.getElementById("privateTarget")?.value.trim();
+  const box = document.getElementById("privateChatBox");
+  if (!box) return;
+  if (!target) {
+    box.innerHTML = "<p class='muted'>请输入私聊对象，或刷新收件箱查看全部私聊。</p>";
+    return;
+  }
+  const res = await fetch("/api/chat/private/list?with=" + encodeURIComponent(target), {
+    headers: {
+      "Authorization": "Bearer " + this.token
+    }
+  });
+  const rows = await res.json().catch(() => []);
   if (!res.ok) {
     box.innerHTML = "<p class='bad'>读取私聊失败</p>";
     return;
   }
-
-const html = rows.map(r => `<p><span class="gold">[私聊]</span> ${this.timeText(r.created_at)} <b>${r.from_username}</b> → <b>${r.to_username}</b>：${r.text}</p>`).join("");
-if(box.dataset.lastHtml!==html){
- box.innerHTML=html;
- box.dataset.lastHtml=html;
- box.scrollTop=box.scrollHeight;
-}
+  if (!rows.length) {
+    box.innerHTML = "<p class='muted'>暂无与该玩家的私聊记录。</p>";
+    return;
+  }
+  const html = rows.map(r => `
+    <p>
+      <span class="gold">[私聊]</span>
+      ${this.timeText(r.created_at)}
+      <b>${this.escapeHTML(r.from_username)}</b>
+      →
+      <b>${this.escapeHTML(r.to_username)}</b>：
+      ${this.escapeHTML(r.text)}
+    </p>
+  `).join("");
+  if (box.dataset.lastHtml !== html) {
+    box.innerHTML = html;
+    box.dataset.lastHtml = html;
+    box.scrollTop = box.scrollHeight;
+  }
 },
-
 async sendGuildChat() {
   if (!this.token) return this.chatStatus("请先登录");
   const input = document.getElementById("guildChatInput");
@@ -1239,11 +1318,11 @@ window.addEventListener("load", () => {
   Online.init();
 setInterval(() => {
   Online.loadAnnouncements();
-  if (document.querySelector("#worldChatBox")) {
+if (document.querySelector("#worldChatBox")) {
     Online.loadWorldChat();
-    Online.loadPrivateChat();
+    Online.loadPrivateInbox();
     Online.loadGuildChat();
-  }
+}
   if (document.querySelector("#guildInfoBox")) {
     Online.loadGuildInfo();
     Online.loadGuildList();

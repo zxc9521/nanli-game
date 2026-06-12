@@ -638,6 +638,37 @@ app.get("/api/chat/private/list", auth, (req, res) => {
 
   res.json(rows);
 });
+app.get("/api/chat/private/inbox", auth, (req, res) => {
+  const rows = db.prepare(`
+    SELECT
+      id,
+      type,
+      from_user_id,
+      from_username,
+      to_user_id,
+      to_username,
+      text,
+      created_at
+    FROM (
+      SELECT
+        id,
+        type,
+        from_user_id,
+        from_username,
+        to_user_id,
+        to_username,
+        text,
+        created_at
+      FROM chat_messages
+      WHERE type = 'private'
+        AND (from_user_id = ? OR to_user_id = ?)
+      ORDER BY id DESC
+      LIMIT 50
+    )
+    ORDER BY id ASC
+  `).all(req.user.id, req.user.id);
+  res.json(rows);
+});
 
 /* =========================
    帮会系统
