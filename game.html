@@ -982,7 +982,7 @@ function isEditingInput(){
  return tag==="INPUT"||tag==="TEXTAREA"||tag==="SELECT";
 }
 function shouldSkipAutoRender(){
- return isEditingInput() || S.tab==="chat" || S.tab==="guild";
+ return isEditingInput() || S.tab==="chat" || S.tab==="guild" || S.tab==="arena";
 }
 function tab(name){
  S.tab=name;
@@ -1135,7 +1135,6 @@ function arenaHTML(){
   <div class="stat">
    <div>今日挑战<br><span class="big">${S.arenaUsed||0}/${arenaLimit()}</span></div>
    <div>已选技能<br><span class="big">${selected.length}/4</span></div>
-   <div>当前战力<br><span class="big gold">${fmt(power())}</span></div>
    <div>命格重铸石<br><span class="big gold">${S.fateRerollStones||0}</span></div>
   </div>
 
@@ -1510,11 +1509,15 @@ escapeHTML(text) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 },
-nameHTML(username, isGM) {
+nameHTML(username, isGM, title = "") {
   const safe = this.escapeHTML(username);
+  const safeTitle = this.escapeHTML(title || "");
+  const titleHTML = safeTitle
+    ? `<span class="tag gold">${safeTitle}</span> `
+    : "";
   return Number(isGM)
-    ? `<span class="gold">[GM]</span><b>${safe}</b>`
-    : `<b>${safe}</b>`;
+    ? `${titleHTML}<span class="gold">[GM]</span><b>${safe}</b>`
+    : `${titleHTML}<b>${safe}</b>`;
 },
 selectPrivateTarget(username) {
   const input = document.getElementById("privateTarget");
@@ -1561,7 +1564,7 @@ async loadWorldChat() {
   <p>
     <span class="gold">[世界]</span>
     ${this.timeText(r.created_at)}
-    ${this.nameHTML(r.from_username, r.from_is_gm)}：
+    ${this.nameHTML(r.from_username, r.from_is_gm, r.from_title)}：
     ${this.escapeHTML(r.text)}
   </p>
 `).join("");
@@ -1635,9 +1638,11 @@ async loadPrivateInbox() {
   const otherSafe = this.escapeHTML(other);
   const text = this.escapeHTML(r.text);
 
-  const otherLabel = Number(otherIsGM)
-    ? `[GM]${otherSafe}`
-    : otherSafe;
+  const otherTitle = isMe ? r.to_title : r.from_title;
+const titlePrefix = otherTitle ? `[${this.escapeHTML(otherTitle)}]` : "";
+const otherLabel = Number(otherIsGM)
+    ? `${titlePrefix}[GM]${otherSafe}`
+    : `${titlePrefix}${otherSafe}`;
 
   const otherButton = `<button class="ghost" style="width:auto;padding:2px 7px;margin:0" onclick="Online.selectPrivateTarget('${otherSafe}')">${otherLabel}</button>`;
 
@@ -1688,9 +1693,9 @@ async loadPrivateChat() {
   <p>
     <span class="gold">[私聊]</span>
     ${this.timeText(r.created_at)}
-    ${this.nameHTML(r.from_username, r.from_is_gm)}
-    →
-    ${this.nameHTML(r.to_username, r.to_is_gm)}：
+    ${this.nameHTML(r.from_username, r.from_is_gm, r.from_title)}
+→
+${this.nameHTML(r.to_username, r.to_is_gm, r.to_title)}：
     ${this.escapeHTML(r.text)}
   </p>
 `).join("");
@@ -1741,7 +1746,7 @@ const html = data.map(r => `
   <p>
     <span class="gold">[帮会]</span>
     ${this.timeText(r.created_at)}
-    ${this.nameHTML(r.from_username, r.from_is_gm)}：
+    ${this.nameHTML(r.from_username, r.from_is_gm, r.from_title)}：
     ${this.escapeHTML(r.text)}
   </p>
 `).join("");
@@ -2000,11 +2005,11 @@ async saveArenaConfig() {
     method: "POST",
     headers: this.authHeaders(),
     body: JSON.stringify({
-      skills,
-      power: Game.getPower ? Game.getPower() : 0,
-      level: Game.getLevel ? Game.getLevel() : 1,
-      vip: Game.getVip ? Game.getVip() : 0
-    })
+  skills,
+  power: 0,
+  level: Game.getLevel ? Game.getLevel() : 1,
+  vip: Game.getVip ? Game.getVip() : 0
+})
   });
 
   const data = await res.json().catch(() => ({}));
@@ -2135,10 +2140,9 @@ async loadArenaNearby() {
       <div class="card">
         <h3>#${r.rank} ${this.escapeHTML(r.username)}</h3>
         <p>
-          战力：<b class="gold">${Math.floor(r.power).toLocaleString()}</b><br>
           等级：${r.level}<br>
-          VIP：V${r.vip}<br>
-          技能：${this.escapeHTML(skillText)}
+VIP：V${r.vip}<br>
+技能：${this.escapeHTML(skillText)}
         </p>
         <button class="goldBtn" onclick="Online.challengeArena(${r.userId})">挑战</button>
       </div>

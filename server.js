@@ -209,11 +209,48 @@ function isGameGM(username) {
   return GM_USERS.has(String(username || ""));
 }
 
+function getUserTitle(username) {
+  username = String(username || "");
+
+  if (!username) return "";
+
+  const titles = [];
+
+  const powerRows = db.prepare(`
+    SELECT username
+    FROM rankings
+    ORDER BY power DESC, level DESC, vip DESC
+    LIMIT 3
+  `).all();
+
+  const powerIndex = powerRows.findIndex(r => r.username === username);
+
+  if (powerIndex === 0) titles.push("战力榜第一");
+  if (powerIndex === 1) titles.push("战力榜第二");
+  if (powerIndex === 2) titles.push("战力榜第三");
+
+  const arenaRow = db.prepare(`
+    SELECT rank
+    FROM arena_players
+    WHERE username = ?
+  `).get(username);
+
+  if (arenaRow) {
+    if (arenaRow.rank === 1) titles.push("竞技场第一");
+    if (arenaRow.rank === 2) titles.push("竞技场第二");
+    if (arenaRow.rank === 3) titles.push("竞技场第三");
+  }
+
+  return titles.join(" · ");
+}
+
 function addGMFlag(row) {
   return {
     ...row,
     from_is_gm: isGameGM(row.from_username) ? 1 : 0,
-    to_is_gm: isGameGM(row.to_username) ? 1 : 0
+    to_is_gm: isGameGM(row.to_username) ? 1 : 0,
+    from_title: getUserTitle(row.from_username),
+    to_title: getUserTitle(row.to_username)
   };
 }
 
@@ -644,15 +681,8 @@ function simulateArenaBattle(attacker, defender) {
   const aScore = arenaSkillScore(aSkills, dSkills);
   const dScore = arenaSkillScore(dSkills, aSkills);
 
-  const aBase =
-    Math.max(1, Number(attacker.power) || 1) *
-    (1 + Math.max(1, Number(attacker.level) || 1) / 10000) *
-    (1 + Math.max(0, Number(attacker.vip) || 0) * 0.012);
-
-  const dBase =
-    Math.max(1, Number(defender.power) || 1) *
-    (1 + Math.max(1, Number(defender.level) || 1) / 10000) *
-    (1 + Math.max(0, Number(defender.vip) || 0) * 0.012);
+  const aBase = 100000;
+  const dBase = 100000;
 
   const aRoll = 0.88 + Math.random() * 0.24;
   const dRoll = 0.88 + Math.random() * 0.24;
@@ -908,7 +938,7 @@ app.post("/api/arena/config", auth, (req, res) => {
     WHERE user_id = ?
   `).get(req.user.id);
 
-  const power = Math.max(0, Math.floor(Number(req.body.power ?? ranking?.power) || 0));
+  const power = 0;
   const level = Math.max(1, Math.floor(Number(req.body.level ?? ranking?.level) || 1));
   const vip = Math.max(0, Math.floor(Number(req.body.vip ?? ranking?.vip) || 0));
 
@@ -946,7 +976,6 @@ app.post("/api/arena/config", auth, (req, res) => {
     me: {
       username: me.username,
       rank: me.rank,
-      power: me.power,
       level: me.level,
       vip: me.vip,
       skills: parseSkills(me.skills),
@@ -978,7 +1007,6 @@ app.get("/api/arena/me", auth, (req, res) => {
     joined: true,
     username: me.username,
     rank: me.rank,
-    power: me.power,
     level: me.level,
     vip: me.vip,
     skills: parseSkills(me.skills),
@@ -999,7 +1027,6 @@ app.get("/api/arena/nearby", auth, (req, res) => {
     userId: r.user_id,
     username: r.username,
     rank: r.rank,
-    power: r.power,
     level: r.level,
     vip: r.vip,
     skills: parseSkills(r.skills),
@@ -1010,7 +1037,6 @@ app.get("/api/arena/nearby", auth, (req, res) => {
     me: {
       username: me.username,
       rank: me.rank,
-      power: me.power,
       level: me.level,
       vip: me.vip,
       skills: parseSkills(me.skills)
@@ -1041,11 +1067,11 @@ app.post("/api/arena/challenge", auth, (req, res) => {
     }
 
     if (attacker.arena_date !== d) {
-      db.prepare(`
-        UPDATE arena_players
-        SET arena_date = ?, arena_used = 0
-        WHERE user_id = ?
-      `).run(d, req.user.id);
+       db.prepare(`
+    UPDATE arena_players
+    SET level = ?, vip = ?, updated_at = ?
+    WHERE user_id = ?
+  `).run(level, vip, Date.now(), req.user.id);
       attacker.arena_date = d;
       attacker.arena_used = 0;
     }
