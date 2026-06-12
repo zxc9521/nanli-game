@@ -15,6 +15,36 @@ const GM_USERS = new Set([
   "我是南黎我是傻逼"
 ]);
 
+const ARENA_SKILLS = [
+  "pojun",
+  "xuangui",
+  "jinghua",
+  "qingnang",
+  "tanlang",
+  "suixing",
+  "shigu",
+  "zhuihun",
+  "tianhuo",
+  "tiebi",
+  "guixu",
+  "tianming"
+];
+
+const ARENA_SKILL_NAMES = {
+  pojun: "破军",
+  xuangui: "玄龟",
+  jinghua: "镜花",
+  qingnang: "青囊",
+  tanlang: "贪狼",
+  suixing: "碎星",
+  shigu: "蚀骨",
+  zhuihun: "追魂",
+  tianhuo: "天火",
+  tiebi: "铁壁",
+  guixu: "归墟",
+  tianming: "天命"
+};
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.static(__dirname));
 
@@ -72,6 +102,36 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   to_username TEXT,
   guild_id INTEGER,
   text TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS arena_players (
+  user_id INTEGER PRIMARY KEY,
+  username TEXT NOT NULL,
+  power INTEGER NOT NULL DEFAULT 0,
+  level INTEGER NOT NULL DEFAULT 1,
+  vip INTEGER NOT NULL DEFAULT 0,
+  skills TEXT NOT NULL DEFAULT '[]',
+  rank INTEGER NOT NULL,
+  arena_date TEXT NOT NULL DEFAULT '',
+  arena_used INTEGER NOT NULL DEFAULT 0,
+  reward_date TEXT NOT NULL DEFAULT '',
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS arena_battles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  attacker_user_id INTEGER NOT NULL,
+  defender_user_id INTEGER NOT NULL,
+  attacker_username TEXT NOT NULL,
+  defender_username TEXT NOT NULL,
+  attacker_rank_before INTEGER NOT NULL,
+  defender_rank_before INTEGER NOT NULL,
+  attacker_rank_after INTEGER NOT NULL,
+  defender_rank_after INTEGER NOT NULL,
+  win INTEGER NOT NULL,
+  log TEXT NOT NULL,
   created_at INTEGER NOT NULL
 );
 `);
@@ -285,9 +345,14 @@ function handleGMCommand(username, text, target = null) {
       WHERE user_id = ?
     `).run(target.id);
 
+    db.prepare(`
+      DELETE FROM arena_players
+      WHERE user_id = ?
+    `).run(target.id);
+
     addAnnouncement(`玩家 ${target.username} 已被GM ${username} 封禁`);
 
-    return gmCommandOk(`${target.username} 已被封禁，并已从排行榜移除`);
+    return gmCommandOk(`${target.username} 已被封禁，并已从排行榜和竞技场移除`);
   }
 
   if (/^JFH$/i.test(content)) {
@@ -433,6 +498,230 @@ function trimChatTable() {
       LIMIT 500
     )
   `).run();
+}
+
+/* =========================
+   竞技场工具函数
+========================= */
+
+function todayKey() {
+  const d = new Date();
+  return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate();
+}
+
+function parseSkills(text) {
+  try {
+    const arr = JSON.parse(text || "[]");
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeArenaSkills(skills) {
+  if (!Array.isArray(skills)) return null;
+
+  const clean = [];
+
+  for (const id of skills) {
+    const s = String(id || "").trim();
+
+    if (!ARENA_SKILLS.includes(s)) {
+      return null;
+    }
+
+    if (!clean.includes(s)) {
+      clean.push(s);
+    }
+  }
+
+  if (clean.length !== 4) {
+    return null;
+  }
+
+  return clean;
+}
+
+function getNextArenaRank() {
+  const row = db.prepare(`
+    SELECT MAX(rank) AS m
+    FROM arena_players
+  `).get();
+
+  return Math.max(1, Number(row?.m || 0) + 1);
+}
+
+function getArenaPlayer(userId) {
+  return db.prepare(`
+    SELECT *
+    FROM arena_players
+    WHERE user_id = ?
+  `).get(userId);
+}
+
+function getArenaNearbyRows(me) {
+  if (!me) return [];
+
+  if (me.rank <= 1) {
+    return db.prepare(`
+      SELECT user_id, username, power, level, vip, skills, rank, updated_at
+      FROM arena_players
+      WHERE rank > ?
+      ORDER BY rank ASC
+      LIMIT 5
+    `).all(me.rank);
+  }
+
+  const start = Math.max(1, me.rank - 5);
+
+  return db.prepare(`
+    SELECT user_id, username, power, level, vip, skills, rank, updated_at
+    FROM arena_players
+    WHERE rank >= ?
+      AND rank < ?
+    ORDER BY rank ASC
+    LIMIT 5
+  `).all(start, me.rank);
+}
+
+function arenaSkillScore(skills, enemySkills) {
+  const has = id => skills.includes(id);
+  const enemyHas = id => enemySkills.includes(id);
+
+  let score = 0;
+
+  for (const id of skills) {
+    if (id === "pojun") score += 13;
+    if (id === "xuangui") score += 12;
+    if (id === "jinghua") score += 12;
+    if (id === "qingnang") score += 11;
+    if (id === "tanlang") score += 12;
+    if (id === "suixing") score += 12;
+    if (id === "shigu") score += 10;
+    if (id === "zhuihun") score += 13;
+    if (id === "tianhuo") score += 11;
+    if (id === "tiebi") score += 11;
+    if (id === "guixu") score += 12;
+    if (id === "tianming") score += Math.floor(8 + Math.random() * 12);
+  }
+
+  if (has("pojun") && has("zhuihun")) score += 10;
+  if (has("xuangui") && has("jinghua")) score += 9;
+  if (has("qingnang") && has("guixu")) score += 9;
+  if (has("tanlang") && has("tianhuo")) score += 7;
+  if (has("suixing") && has("shigu")) score += 7;
+  if (has("tiebi") && has("xuangui")) score += 6;
+  if (has("tianming")) score += Math.floor(Math.random() * 18) - 6;
+
+  if (has("pojun") && (enemyHas("xuangui") || enemyHas("qingnang") || enemyHas("guixu"))) score += 8;
+  if (has("xuangui") && (enemyHas("pojun") || enemyHas("zhuihun") || enemyHas("tianhuo"))) score += 8;
+  if (has("jinghua") && (enemyHas("pojun") || enemyHas("zhuihun") || enemyHas("tianhuo"))) score += 9;
+  if (has("qingnang") && (enemyHas("shigu") || enemyHas("tianhuo") || enemyHas("guixu"))) score += 7;
+  if (has("tanlang") && (enemyHas("qingnang") || enemyHas("xuangui") || enemyHas("guixu"))) score += 9;
+  if (has("suixing") && (enemyHas("xuangui") || enemyHas("tiebi") || enemyHas("qingnang"))) score += 9;
+  if (has("shigu") && (enemyHas("jinghua") || enemyHas("qingnang") || enemyHas("xuangui"))) score += 8;
+  if (has("zhuihun") && (enemyHas("shigu") || enemyHas("guixu") || enemyHas("qingnang"))) score += 8;
+  if (has("tianhuo") && (enemyHas("shigu") || enemyHas("guixu") || enemyHas("tanlang"))) score += 7;
+  if (has("tiebi") && (enemyHas("zhuihun") || enemyHas("tianhuo") || enemyHas("shigu"))) score += 8;
+  if (has("guixu") && (enemyHas("tiebi") || enemyHas("xuangui") || enemyHas("qingnang"))) score += 7;
+
+  if (has("pojun") && (enemyHas("jinghua") || enemyHas("tiebi"))) score -= 8;
+  if (has("xuangui") && (enemyHas("suixing") || enemyHas("tanlang"))) score -= 8;
+  if (has("qingnang") && enemyHas("tanlang")) score -= 10;
+  if (has("guixu") && (enemyHas("zhuihun") || enemyHas("pojun") || enemyHas("tanlang"))) score -= 8;
+
+  return score;
+}
+
+function skillNames(skills) {
+  return skills.map(id => ARENA_SKILL_NAMES[id] || id).join("、");
+}
+
+function simulateArenaBattle(attacker, defender) {
+  const aSkills = parseSkills(attacker.skills);
+  const dSkills = parseSkills(defender.skills);
+
+  const aScore = arenaSkillScore(aSkills, dSkills);
+  const dScore = arenaSkillScore(dSkills, aSkills);
+
+  const aBase =
+    Math.max(1, Number(attacker.power) || 1) *
+    (1 + Math.max(1, Number(attacker.level) || 1) / 10000) *
+    (1 + Math.max(0, Number(attacker.vip) || 0) * 0.012);
+
+  const dBase =
+    Math.max(1, Number(defender.power) || 1) *
+    (1 + Math.max(1, Number(defender.level) || 1) / 10000) *
+    (1 + Math.max(0, Number(defender.vip) || 0) * 0.012);
+
+  const aRoll = 0.88 + Math.random() * 0.24;
+  const dRoll = 0.88 + Math.random() * 0.24;
+
+  const aFinal = Math.floor(aBase * (1 + aScore / 100) * aRoll);
+  const dFinal = Math.floor(dBase * (1 + dScore / 100) * dRoll);
+
+  const win = aFinal >= dFinal;
+
+  const log = [];
+
+  log.push(`【竞技场第一赛季】${attacker.username} 向 ${defender.username} 发起挑战。`);
+  log.push(`挑战方技能：${skillNames(aSkills)}。`);
+  log.push(`防守方技能：${skillNames(dSkills)}。`);
+
+  if (aSkills.includes("pojun")) log.push(`${attacker.username} 携【破军】开局压阵，试图三回合内打穿对手。`);
+  if (aSkills.includes("xuangui")) log.push(`${attacker.username} 祭出【玄龟】，厚重护盾覆盖全身。`);
+  if (aSkills.includes("jinghua")) log.push(`${attacker.username} 布下【镜花】，等待敌方爆发反噬。`);
+  if (aSkills.includes("qingnang")) log.push(`${attacker.username} 运转【青囊】，准备以续航拖垮对手。`);
+  if (aSkills.includes("tanlang")) log.push(`${attacker.username} 唤醒【贪狼】，吸血与禁疗同时压迫。`);
+  if (aSkills.includes("suixing")) log.push(`${attacker.username} 引动【碎星】，真实伤害开始撕裂防御。`);
+  if (aSkills.includes("shigu")) log.push(`${attacker.username} 释放【蚀骨】，毒层逐渐腐蚀对手根基。`);
+  if (aSkills.includes("zhuihun")) log.push(`${attacker.username} 发动【追魂】，抢占先手寻找斩杀机会。`);
+  if (aSkills.includes("tianhuo")) log.push(`${attacker.username} 召来【天火】，灼烧与引燃不断施压。`);
+  if (aSkills.includes("tiebi")) log.push(`${attacker.username} 立起【铁壁】，连续伤害被层层削弱。`);
+  if (aSkills.includes("guixu")) log.push(`${attacker.username} 沉入【归墟】，越拖到后期越危险。`);
+  if (aSkills.includes("tianming")) log.push(`${attacker.username} 选择【天命】，本局胜负多了几分赌性。`);
+
+  log.push(`挑战方竞技评分：${aFinal.toLocaleString()}。`);
+  log.push(`防守方竞技评分：${dFinal.toLocaleString()}。`);
+
+  if (win) {
+    log.push(`战斗结果：${attacker.username} 胜利。`);
+  } else {
+    log.push(`战斗结果：${defender.username} 防守成功。`);
+  }
+
+  return {
+    win,
+    attackerScore: aFinal,
+    defenderScore: dFinal,
+    log
+  };
+}
+
+function arenaRewardByRank(rank) {
+  rank = Math.max(1, Math.floor(Number(rank) || 999999));
+
+  if (rank === 1) {
+    return { yb: 100000, forge: 30000, fate: 2, black: 2, god: 1, rare: 0, legend: 0 };
+  }
+
+  if (rank === 2) {
+    return { yb: 70000, forge: 22000, fate: 2, black: 2, god: 0, rare: 0, legend: 0 };
+  }
+
+  if (rank === 3) {
+    return { yb: 50000, forge: 16000, fate: 1, black: 1, god: 0, rare: 0, legend: 0 };
+  }
+
+  if (rank <= 10) {
+    return { yb: 30000, forge: 10000, fate: 1, black: 0, god: 0, rare: 0, legend: 3 };
+  }
+
+  if (rank <= 50) {
+    return { yb: 15000, forge: 5000, fate: 0, black: 0, god: 0, rare: 5, legend: 0 };
+  }
+
+  return { yb: 3000, forge: 1000, fate: 0, black: 0, god: 0, rare: 0, legend: 0 };
 }
 
 /* =========================
@@ -582,6 +871,12 @@ app.post("/api/ranking", auth, (req, res) => {
       updated_at = excluded.updated_at
   `).run(req.user.id, req.user.username, power, level, vip, Date.now());
 
+  db.prepare(`
+    UPDATE arena_players
+    SET power = ?, level = ?, vip = ?, updated_at = ?
+    WHERE user_id = ?
+  `).run(power, level, vip, Date.now(), req.user.id);
+
   res.json({ ok: true });
 });
 
@@ -594,6 +889,342 @@ app.get("/api/ranking", (req, res) => {
   `).all();
 
   res.json(rows);
+});
+
+/* =========================
+   竞技场第一赛季
+========================= */
+
+app.post("/api/arena/config", auth, (req, res) => {
+  const skills = normalizeArenaSkills(req.body.skills);
+
+  if (!skills) {
+    return res.status(400).json({ error: "竞技场技能配置错误，必须选择4个不同技能" });
+  }
+
+  const ranking = db.prepare(`
+    SELECT power, level, vip
+    FROM rankings
+    WHERE user_id = ?
+  `).get(req.user.id);
+
+  const power = Math.max(0, Math.floor(Number(req.body.power ?? ranking?.power) || 0));
+  const level = Math.max(1, Math.floor(Number(req.body.level ?? ranking?.level) || 1));
+  const vip = Math.max(0, Math.floor(Number(req.body.vip ?? ranking?.vip) || 0));
+
+  const existing = getArenaPlayer(req.user.id);
+  const rank = existing ? existing.rank : getNextArenaRank();
+
+  db.prepare(`
+    INSERT INTO arena_players (
+      user_id, username, power, level, vip, skills, rank, arena_date, arena_used, reward_date, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, '', 0, '', ?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      username = excluded.username,
+      power = excluded.power,
+      level = excluded.level,
+      vip = excluded.vip,
+      skills = excluded.skills,
+      updated_at = excluded.updated_at
+  `).run(
+    req.user.id,
+    req.user.username,
+    power,
+    level,
+    vip,
+    JSON.stringify(skills),
+    rank,
+    Date.now()
+  );
+
+  const me = getArenaPlayer(req.user.id);
+
+  res.json({
+    ok: true,
+    message: "竞技场技能配置已保存",
+    me: {
+      username: me.username,
+      rank: me.rank,
+      power: me.power,
+      level: me.level,
+      vip: me.vip,
+      skills: parseSkills(me.skills),
+      arenaUsed: me.arena_used,
+      arenaLimit: 10,
+      rewardDate: me.reward_date
+    }
+  });
+});
+
+app.get("/api/arena/me", auth, (req, res) => {
+  const me = getArenaPlayer(req.user.id);
+
+  if (!me) {
+    return res.json({
+      joined: false,
+      message: "尚未配置竞技场技能"
+    });
+  }
+
+  const d = todayKey();
+  let arenaUsed = me.arena_used;
+
+  if (me.arena_date !== d) {
+    arenaUsed = 0;
+  }
+
+  res.json({
+    joined: true,
+    username: me.username,
+    rank: me.rank,
+    power: me.power,
+    level: me.level,
+    vip: me.vip,
+    skills: parseSkills(me.skills),
+    arenaUsed,
+    arenaLimit: 10,
+    rewardClaimed: me.reward_date === d
+  });
+});
+
+app.get("/api/arena/nearby", auth, (req, res) => {
+  const me = getArenaPlayer(req.user.id);
+
+  if (!me) {
+    return res.status(400).json({ error: "请先配置竞技场技能" });
+  }
+
+  const rows = getArenaNearbyRows(me).map(r => ({
+    userId: r.user_id,
+    username: r.username,
+    rank: r.rank,
+    power: r.power,
+    level: r.level,
+    vip: r.vip,
+    skills: parseSkills(r.skills),
+    updatedAt: r.updated_at
+  }));
+
+  res.json({
+    me: {
+      username: me.username,
+      rank: me.rank,
+      power: me.power,
+      level: me.level,
+      vip: me.vip,
+      skills: parseSkills(me.skills)
+    },
+    rows
+  });
+});
+
+app.post("/api/arena/challenge", auth, (req, res) => {
+  const targetUserId = Math.max(1, Math.floor(Number(req.body.targetUserId) || 0));
+
+  if (!targetUserId) {
+    return res.status(400).json({ error: "挑战目标错误" });
+  }
+
+  if (targetUserId === req.user.id) {
+    return res.status(400).json({ error: "不能挑战自己" });
+  }
+
+  const d = todayKey();
+  let resultPayload = null;
+
+  const tx = db.transaction(() => {
+    const attacker = getArenaPlayer(req.user.id);
+
+    if (!attacker) {
+      throw new Error("请先配置竞技场技能");
+    }
+
+    if (attacker.arena_date !== d) {
+      db.prepare(`
+        UPDATE arena_players
+        SET arena_date = ?, arena_used = 0
+        WHERE user_id = ?
+      `).run(d, req.user.id);
+      attacker.arena_date = d;
+      attacker.arena_used = 0;
+    }
+
+    if (attacker.arena_used >= 10) {
+      throw new Error("今日竞技场挑战次数已用完");
+    }
+
+    const defender = getArenaPlayer(targetUserId);
+
+    if (!defender) {
+      throw new Error("目标玩家尚未进入竞技场");
+    }
+
+    const nearby = getArenaNearbyRows(attacker).map(r => r.user_id);
+
+    if (!nearby.includes(targetUserId)) {
+      throw new Error("只能挑战排名附近五名玩家");
+    }
+
+    const sim = simulateArenaBattle(attacker, defender);
+
+    const attackerRankBefore = attacker.rank;
+    const defenderRankBefore = defender.rank;
+
+    let attackerRankAfter = attackerRankBefore;
+    let defenderRankAfter = defenderRankBefore;
+
+    if (sim.win && defender.rank < attacker.rank) {
+      attackerRankAfter = defender.rank;
+      defenderRankAfter = attacker.rank;
+
+      db.prepare(`
+        UPDATE arena_players
+        SET rank = ?
+        WHERE user_id = ?
+      `).run(attackerRankAfter, attacker.user_id);
+
+      db.prepare(`
+        UPDATE arena_players
+        SET rank = ?
+        WHERE user_id = ?
+      `).run(defenderRankAfter, defender.user_id);
+    }
+
+    db.prepare(`
+      UPDATE arena_players
+      SET arena_used = arena_used + 1, arena_date = ?
+      WHERE user_id = ?
+    `).run(d, attacker.user_id);
+
+    const info = db.prepare(`
+      INSERT INTO arena_battles (
+        attacker_user_id,
+        defender_user_id,
+        attacker_username,
+        defender_username,
+        attacker_rank_before,
+        defender_rank_before,
+        attacker_rank_after,
+        defender_rank_after,
+        win,
+        log,
+        created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      attacker.user_id,
+      defender.user_id,
+      attacker.username,
+      defender.username,
+      attackerRankBefore,
+      defenderRankBefore,
+      attackerRankAfter,
+      defenderRankAfter,
+      sim.win ? 1 : 0,
+      JSON.stringify(sim.log),
+      Date.now()
+    );
+
+    resultPayload = {
+      ok: true,
+      battleId: info.lastInsertRowid,
+      win: sim.win,
+      log: sim.log,
+      attackerRankBefore,
+      defenderRankBefore,
+      attackerRankAfter,
+      defenderRankAfter,
+      arenaUsed: attacker.arena_used + 1,
+      arenaLimit: 10
+    };
+  });
+
+  try {
+    tx();
+    res.json(resultPayload);
+  } catch (err) {
+    res.status(400).json({ error: err.message || "挑战失败" });
+  }
+});
+
+app.get("/api/arena/battles", auth, (req, res) => {
+  const rows = db.prepare(`
+    SELECT *
+    FROM arena_battles
+    WHERE attacker_user_id = ?
+       OR defender_user_id = ?
+    ORDER BY id DESC
+    LIMIT 20
+  `).all(req.user.id, req.user.id);
+
+  res.json(rows.map(r => ({
+    id: r.id,
+    attackerUsername: r.attacker_username,
+    defenderUsername: r.defender_username,
+    win: !!r.win,
+    log: (() => {
+      try {
+        return JSON.parse(r.log);
+      } catch {
+        return [];
+      }
+    })(),
+    createdAt: r.created_at,
+    attackerRankBefore: r.attacker_rank_before,
+    defenderRankBefore: r.defender_rank_before,
+    attackerRankAfter: r.attacker_rank_after,
+    defenderRankAfter: r.defender_rank_after
+  })));
+});
+
+app.post("/api/arena/reward", auth, (req, res) => {
+  const me = getArenaPlayer(req.user.id);
+
+  if (!me) {
+    return res.status(400).json({ error: "请先进入竞技场" });
+  }
+
+  const d = todayKey();
+
+  if (me.reward_date === d) {
+    return res.status(400).json({ error: "今日竞技场奖励已经领取过" });
+  }
+
+  const result = readUserSaveById(req.user.id);
+
+  if (result.error) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  const { save } = result;
+  const reward = arenaRewardByRank(me.rank);
+
+  save.yuanbao = Math.max(0, Math.floor(Number(save.yuanbao) || 0)) + reward.yb;
+  save.forgeStones = Math.max(0, Math.floor(Number(save.forgeStones) || 0)) + reward.forge;
+  save.fateRerollStones = Math.max(0, Math.floor(Number(save.fateRerollStones) || 0)) + reward.fate;
+
+  save.universalShards = save.universalShards || {};
+  save.universalShards.black = Math.max(0, Math.floor(Number(save.universalShards.black) || 0)) + reward.black;
+  save.universalShards.god = Math.max(0, Math.floor(Number(save.universalShards.god) || 0)) + reward.god;
+  save.universalShards.rare = Math.max(0, Math.floor(Number(save.universalShards.rare) || 0)) + reward.rare;
+  save.universalShards.legend = Math.max(0, Math.floor(Number(save.universalShards.legend) || 0)) + reward.legend;
+
+  writeUserSave(req.user.id, save);
+
+  db.prepare(`
+    UPDATE arena_players
+    SET reward_date = ?
+    WHERE user_id = ?
+  `).run(d, req.user.id);
+
+  res.json({
+    ok: true,
+    message: `领取竞技场第${me.rank}名每日奖励成功`,
+    rank: me.rank,
+    reward,
+    save
+  });
 });
 
 /* =========================
@@ -637,7 +1268,6 @@ app.post("/api/chat/world/send", auth, (req, res) => {
     return res.status(400).json({ error: "聊天内容不能为空" });
   }
 
-  // GM公告指令优先处理，不受禁言和3秒冷却影响
   const gmResult = handleGMCommand(req.user.username, text, null);
 
   if (gmResult.handled) {
@@ -729,7 +1359,6 @@ app.post("/api/chat/private/send", auth, (req, res) => {
     return res.status(404).json({ error: "玩家不存在" });
   }
 
-  // GM指令优先处理，不受禁言和3秒冷却影响
   const gmResult = handleGMCommand(req.user.username, text, target);
 
   if (gmResult.handled) {
@@ -1302,9 +1931,14 @@ app.post("/api/gm/ban", gmAuth, (req, res) => {
     WHERE user_id = ?
   `).run(user.id);
 
+  db.prepare(`
+    DELETE FROM arena_players
+    WHERE user_id = ?
+  `).run(user.id);
+
   res.json({
     ok: true,
-    message: `${user.username} 已被封号，并已从排行榜移除`
+    message: `${user.username} 已被封号，并已从排行榜和竞技场移除`
   });
 });
 
