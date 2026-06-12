@@ -25,10 +25,29 @@ h1,h2,h3{margin:.2em 0 .55em}p{line-height:1.65}.tag{display:inline-flex;border:
 .q10,.q11,.q12,.q13,.pq7,.pq8,.pq9,.pq11{font-weight:950;background:linear-gradient(90deg,#ff477e,#ffd166,#65e6a5,#79bdff,#c084fc,#ff477e);background-size:220%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:rainbow 2s linear infinite}
 .q11,.q12,.q13,.pq11{background:linear-gradient(90deg,#ffffff,#ffd166,#ff477e,#8b5cf6,#71f7ff,#ffffff);background-size:260%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:rainbow 1.25s linear infinite}
 .pq1{color:#eef3ff}.pq2{color:#62e6a0}.pq3{color:#69b7ff}.pq4{color:#b884ff}.pq5{color:#ffd166}.pq6{color:#ff6b6b}.pq10{color:#111;background:#999;border-radius:6px;padding:1px 5px}
+#globalBanner{
+  position:fixed;
+  top:24px;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:99999;
+  padding:14px 28px;
+  border-radius:999px;
+  background:linear-gradient(135deg,#ffd166,#ff6b7a);
+  color:#211;
+  font-size:20px;
+  font-weight:950;
+  box-shadow:0 12px 40px #0008;
+  display:none;
+  max-width:90vw;
+  text-align:center;
+  line-height:1.4;
+}
 @keyframes rainbow{to{background-position:220%}}@media(max-width:850px){.two{grid-template-columns:1fr}.top{flex-direction:column}}
 </style>
 </head>
 <body>
+<div id="globalBanner"></div>
 <div class="wrap">
   <div class="top">
     <div>
@@ -1297,6 +1316,19 @@ const Online = {
     const box = document.getElementById("onlineStatus");
     if (box) box.textContent = text;
   },
+showGlobalBanner(text) {
+  const box = document.getElementById("globalBanner");
+  if (!box) return;
+
+  box.textContent = text;
+  box.style.display = "block";
+
+  clearTimeout(this.bannerTimer);
+
+  this.bannerTimer = setTimeout(() => {
+    box.style.display = "none";
+  }, 3000);
+},
 
 async init() {
   if (this.token) {
@@ -1471,9 +1503,10 @@ async loadAnnouncements() {
     for (const row of rows) {
       this.lastAnnouncementId = Math.max(this.lastAnnouncementId, row.id);
       localStorage.setItem("nanli_last_announcement_id", this.lastAnnouncementId);
-      if (typeof Game !== "undefined" && Game.addSystemLog) {
-        Game.addSystemLog("【全服通报】" + row.text);
-      }
+     if (typeof Game !== "undefined" && Game.addSystemLog) {
+  Game.addSystemLog("【全服通报】" + row.text);
+}
+this.showGlobalBanner(row.text);
     }
   } catch {}
 },
