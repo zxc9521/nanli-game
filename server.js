@@ -39,6 +39,35 @@ CREATE TABLE IF NOT EXISTS announcements (
   text TEXT NOT NULL,
   created_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS guilds (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT UNIQUE NOT NULL,
+  leader_user_id INTEGER NOT NULL,
+  leader_username TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS guild_members (
+  user_id INTEGER PRIMARY KEY,
+  username TEXT NOT NULL,
+  guild_id INTEGER NOT NULL,
+  role TEXT NOT NULL DEFAULT 'member',
+  joined_at INTEGER NOT NULL,
+  FOREIGN KEY(guild_id) REFERENCES guilds(id)
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  type TEXT NOT NULL,
+  from_user_id INTEGER NOT NULL,
+  from_username TEXT NOT NULL,
+  to_user_id INTEGER,
+  to_username TEXT,
+  guild_id INTEGER,
+  text TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
 `);
 
 const userColumns = db.prepare(`PRAGMA table_info(users)`).all().map(col => col.name);
@@ -55,12 +84,15 @@ if (!userColumns.includes("banned")) {
   db.exec(`ALTER TABLE users ADD COLUMN banned INTEGER NOT NULL DEFAULT 0`);
 }
 
+const lastChatTime = new Map();
+
 function auth(req, res, next) {
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : "";
 
   try {
     const payload = jwt.verify(token, JWT_SECRET);
+
     const user = db.prepare(`
       SELECT id, username, banned
       FROM users
@@ -94,6 +126,53 @@ function gmAuth(req, res, next) {
   }
 
   next();
+}
+
+function cleanText(text, max = 80) {
+  return String(text || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, max);
+}
+
+function checkChatRate(userId) {
+  const now = Date.now();
+  const last = lastChatTime.get(userId) || 0;
+
+  if (now - last < 3000) {
+    return false;
+  }
+
+  lastChatTime.set(userId, now);
+  return true;
+}
+
+function readUserSaveById(userId) {
+  const user = db.prepare(`
+    SELECT id, username, save_data
+    FROM users
+    WHERE id = ?
+  `).get(userId);
+
+  if (!user) {
+    return { error: "玩家不存在" };
+  }
+
+  let save = null;
+
+  try {
+    save = user.save_data ? JSON.parse(user.save_data) : null;
+  } catch {
+    save = null;
+  }
+
+  if (!save || typeof save !== "object") {
+    return {
+      error: "该玩家暂无云存档，请先登录并保存一次"
+    };
+  }
+
+  return { user, save };
 }
 
 function readUserSave(username) {
@@ -133,6 +212,40 @@ function writeUserSave(userId, save) {
     WHERE id = ?
   `).run(JSON.stringify(save), Date.now(), userId);
 }
+
+function getMyGuild(userId) {
+  return db.prepare(`
+    SELECT
+      gm.user_id,
+      gm.username,
+      gm.guild_id,
+      gm.role,
+      gm.joined_at,
+      g.name AS guild_name,
+      g.leader_user_id,
+      g.leader_username,
+      g.created_at
+    FROM guild_members gm
+    JOIN guilds g ON g.id = gm.guild_id
+    WHERE gm.user_id = ?
+  `).get(userId);
+}
+
+function trimChatTable() {
+  db.prepare(`
+    DELETE FROM chat_messages
+    WHERE id NOT IN (
+      SELECT id
+      FROM chat_messages
+      ORDER BY id DESC
+      LIMIT 500
+    )
+  `).run();
+}
+
+/* =========================
+   账号系统
+========================= */
 
 app.post("/api/register", async (req, res) => {
   const username = String(req.body.username || "").trim();
@@ -203,6 +316,10 @@ app.post("/api/login", async (req, res) => {
   res.json({ token, username: user.username });
 });
 
+/* =========================
+   云存档
+========================= */
+
 app.get("/api/save", auth, (req, res) => {
   const user = db.prepare(`
     SELECT save_data, save_updated_at
@@ -253,10 +370,48 @@ app.post("/api/save", auth, (req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/api/announcement", auth, (req, res) => {
-  const text = String(req.body.text || "").trim();
+/* =========================
+   排行榜
+========================= */
 
-  if (!text || text.length > 120) {
+app.post("/api/ranking", auth, (req, res) => {
+  const power = Math.max(0, Math.floor(Number(req.body.power) || 0));
+  const level = Math.max(1, Math.floor(Number(req.body.level) || 1));
+  const vip = Math.max(0, Math.floor(Number(req.body.vip) || 0));
+
+  db.prepare(`
+    INSERT INTO rankings (user_id, username, power, level, vip, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      username = excluded.username,
+      power = excluded.power,
+      level = excluded.level,
+      vip = excluded.vip,
+      updated_at = excluded.updated_at
+  `).run(req.user.id, req.user.username, power, level, vip, Date.now());
+
+  res.json({ ok: true });
+});
+
+app.get("/api/ranking", (req, res) => {
+  const rows = db.prepare(`
+    SELECT username, power, level, vip, updated_at
+    FROM rankings
+    ORDER BY power DESC, level DESC, vip DESC
+    LIMIT 50
+  `).all();
+
+  res.json(rows);
+});
+
+/* =========================
+   全服通报
+========================= */
+
+app.post("/api/announcement", auth, (req, res) => {
+  const text = cleanText(req.body.text, 120);
+
+  if (!text) {
     return res.status(400).json({ error: "通报内容错误" });
   }
 
@@ -291,6 +446,439 @@ app.get("/api/announcement", (req, res) => {
 
   res.json(rows);
 });
+
+/* =========================
+   世界聊天
+========================= */
+
+app.post("/api/chat/world/send", auth, (req, res) => {
+  const text = cleanText(req.body.text, 80);
+
+  if (!text) {
+    return res.status(400).json({ error: "聊天内容不能为空" });
+  }
+
+  if (!checkChatRate(req.user.id)) {
+    return res.status(429).json({ error: "发言太快，请3秒后再试" });
+  }
+
+  const info = db.prepare(`
+    INSERT INTO chat_messages (
+      type, from_user_id, from_username, text, created_at
+    )
+    VALUES ('world', ?, ?, ?, ?)
+  `).run(req.user.id, req.user.username, text, Date.now());
+
+  db.prepare(`
+    DELETE FROM chat_messages
+    WHERE type = 'world'
+      AND id NOT IN (
+        SELECT id
+        FROM chat_messages
+        WHERE type = 'world'
+        ORDER BY id DESC
+        LIMIT 20
+      )
+  `).run();
+
+  trimChatTable();
+
+  res.json({
+    ok: true,
+    id: info.lastInsertRowid
+  });
+});
+
+app.get("/api/chat/world/list", auth, (req, res) => {
+  const rows = db.prepare(`
+    SELECT id, type, from_username, text, created_at
+    FROM (
+      SELECT id, type, from_username, text, created_at
+      FROM chat_messages
+      WHERE type = 'world'
+      ORDER BY id DESC
+      LIMIT 20
+    )
+    ORDER BY id ASC
+  `).all();
+
+  res.json(rows);
+});
+
+/* =========================
+   私聊
+========================= */
+
+app.post("/api/chat/private/send", auth, (req, res) => {
+  const toUsername = String(req.body.toUsername || "").trim();
+  const text = cleanText(req.body.text, 80);
+
+  if (!toUsername) {
+    return res.status(400).json({ error: "请输入私聊对象" });
+  }
+
+  if (!text) {
+    return res.status(400).json({ error: "聊天内容不能为空" });
+  }
+
+  if (toUsername === req.user.username) {
+    return res.status(400).json({ error: "不能私聊自己" });
+  }
+
+  if (!checkChatRate(req.user.id)) {
+    return res.status(429).json({ error: "发言太快，请3秒后再试" });
+  }
+
+  const target = db.prepare(`
+    SELECT id, username, banned
+    FROM users
+    WHERE username = ?
+  `).get(toUsername);
+
+  if (!target) {
+    return res.status(404).json({ error: "玩家不存在" });
+  }
+
+  if (target.banned) {
+    return res.status(403).json({ error: "该玩家已被封禁" });
+  }
+
+  const info = db.prepare(`
+    INSERT INTO chat_messages (
+      type, from_user_id, from_username, to_user_id, to_username, text, created_at
+    )
+    VALUES ('private', ?, ?, ?, ?, ?, ?)
+  `).run(
+    req.user.id,
+    req.user.username,
+    target.id,
+    target.username,
+    text,
+    Date.now()
+  );
+
+  trimChatTable();
+
+  res.json({
+    ok: true,
+    id: info.lastInsertRowid
+  });
+});
+
+app.get("/api/chat/private/list", auth, (req, res) => {
+  const withUsername = String(req.query.with || "").trim();
+
+  if (!withUsername) {
+    return res.status(400).json({ error: "请输入私聊对象" });
+  }
+
+  const other = db.prepare(`
+    SELECT id, username
+    FROM users
+    WHERE username = ?
+  `).get(withUsername);
+
+  if (!other) {
+    return res.status(404).json({ error: "玩家不存在" });
+  }
+
+  const rows = db.prepare(`
+    SELECT id, type, from_username, to_username, text, created_at
+    FROM (
+      SELECT id, type, from_username, to_username, text, created_at
+      FROM chat_messages
+      WHERE type = 'private'
+        AND (
+          (from_user_id = ? AND to_user_id = ?)
+          OR
+          (from_user_id = ? AND to_user_id = ?)
+        )
+      ORDER BY id DESC
+      LIMIT 20
+    )
+    ORDER BY id ASC
+  `).all(req.user.id, other.id, other.id, req.user.id);
+
+  res.json(rows);
+});
+
+/* =========================
+   帮会系统
+========================= */
+
+app.get("/api/guild/me", auth, (req, res) => {
+  const guild = getMyGuild(req.user.id);
+
+  if (!guild) {
+    return res.json({
+      inGuild: false,
+      guild: null,
+      members: []
+    });
+  }
+
+  const members = db.prepare(`
+    SELECT username, role, joined_at
+    FROM guild_members
+    WHERE guild_id = ?
+    ORDER BY role DESC, joined_at ASC
+  `).all(guild.guild_id);
+
+  res.json({
+    inGuild: true,
+    guild,
+    members
+  });
+});
+
+app.get("/api/guild/list", auth, (req, res) => {
+  const rows = db.prepare(`
+    SELECT
+      g.id,
+      g.name,
+      g.leader_username,
+      g.created_at,
+      COUNT(gm.user_id) AS member_count
+    FROM guilds g
+    LEFT JOIN guild_members gm ON gm.guild_id = g.id
+    GROUP BY g.id
+    ORDER BY g.id DESC
+    LIMIT 50
+  `).all();
+
+  res.json(rows);
+});
+
+app.post("/api/guild/create", auth, (req, res) => {
+  const name = String(req.body.name || "").trim();
+
+  if (!/^[a-zA-Z0-9_\u4e00-\u9fa5]{2,16}$/.test(name)) {
+    return res.status(400).json({
+      error: "帮会名需为2-16位中文、英文、数字或下划线"
+    });
+  }
+
+  const existingMember = getMyGuild(req.user.id);
+
+  if (existingMember) {
+    return res.status(400).json({ error: "你已经加入了帮会，不能重复创建" });
+  }
+
+  const result = readUserSaveById(req.user.id);
+
+  if (result.error) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  const { user, save } = result;
+
+  save.guildToken = Math.max(0, Math.floor(Number(save.guildToken) || 0));
+
+  if (save.guildToken < 1) {
+    return res.status(400).json({ error: "帮派令不足，无法创建帮会" });
+  }
+
+  const createGuildTx = db.transaction(() => {
+    save.guildToken -= 1;
+
+    const info = db.prepare(`
+      INSERT INTO guilds (name, leader_user_id, leader_username, created_at)
+      VALUES (?, ?, ?, ?)
+    `).run(name, user.id, user.username, Date.now());
+
+    db.prepare(`
+      INSERT INTO guild_members (user_id, username, guild_id, role, joined_at)
+      VALUES (?, ?, ?, 'leader', ?)
+    `).run(user.id, user.username, info.lastInsertRowid, Date.now());
+
+    writeUserSave(user.id, save);
+
+    return info.lastInsertRowid;
+  });
+
+  try {
+    const guildId = createGuildTx();
+
+    res.json({
+      ok: true,
+      message: `帮会【${name}】创建成功`,
+      guildId,
+      save
+    });
+  } catch {
+    res.status(409).json({ error: "帮会名已存在" });
+  }
+});
+
+app.post("/api/guild/join", auth, (req, res) => {
+  const name = String(req.body.name || "").trim();
+
+  if (!name) {
+    return res.status(400).json({ error: "请输入帮会名称" });
+  }
+
+  const existingMember = getMyGuild(req.user.id);
+
+  if (existingMember) {
+    return res.status(400).json({ error: "你已经加入了帮会" });
+  }
+
+  const guild = db.prepare(`
+    SELECT id, name
+    FROM guilds
+    WHERE name = ?
+  `).get(name);
+
+  if (!guild) {
+    return res.status(404).json({ error: "帮会不存在" });
+  }
+
+  db.prepare(`
+    INSERT INTO guild_members (user_id, username, guild_id, role, joined_at)
+    VALUES (?, ?, ?, 'member', ?)
+  `).run(req.user.id, req.user.username, guild.id, Date.now());
+
+  res.json({
+    ok: true,
+    message: `已加入帮会【${guild.name}】`
+  });
+});
+
+app.post("/api/guild/leave", auth, (req, res) => {
+  const guild = getMyGuild(req.user.id);
+
+  if (!guild) {
+    return res.status(400).json({ error: "你当前没有加入帮会" });
+  }
+
+  if (guild.role === "leader") {
+    const memberCount = db.prepare(`
+      SELECT COUNT(*) AS c
+      FROM guild_members
+      WHERE guild_id = ?
+    `).get(guild.guild_id).c;
+
+    if (memberCount > 1) {
+      return res.status(400).json({
+        error: "会长不能直接退出，请先让其他成员退出，或后续添加转让会长功能"
+      });
+    }
+
+    db.prepare(`
+      DELETE FROM guild_members
+      WHERE guild_id = ?
+    `).run(guild.guild_id);
+
+    db.prepare(`
+      DELETE FROM guilds
+      WHERE id = ?
+    `).run(guild.guild_id);
+
+    db.prepare(`
+      DELETE FROM chat_messages
+      WHERE type = 'guild'
+        AND guild_id = ?
+    `).run(guild.guild_id);
+
+    return res.json({
+      ok: true,
+      message: `帮会【${guild.guild_name}】已解散`
+    });
+  }
+
+  db.prepare(`
+    DELETE FROM guild_members
+    WHERE user_id = ?
+  `).run(req.user.id);
+
+  res.json({
+    ok: true,
+    message: `已退出帮会【${guild.guild_name}】`
+  });
+});
+
+/* =========================
+   帮会聊天
+========================= */
+
+app.post("/api/chat/guild/send", auth, (req, res) => {
+  const text = cleanText(req.body.text, 80);
+
+  if (!text) {
+    return res.status(400).json({ error: "聊天内容不能为空" });
+  }
+
+  if (!checkChatRate(req.user.id)) {
+    return res.status(429).json({ error: "发言太快，请3秒后再试" });
+  }
+
+  const guild = getMyGuild(req.user.id);
+
+  if (!guild) {
+    return res.status(400).json({ error: "你还没有加入帮会" });
+  }
+
+  const info = db.prepare(`
+    INSERT INTO chat_messages (
+      type, from_user_id, from_username, guild_id, text, created_at
+    )
+    VALUES ('guild', ?, ?, ?, ?, ?)
+  `).run(
+    req.user.id,
+    req.user.username,
+    guild.guild_id,
+    text,
+    Date.now()
+  );
+
+  db.prepare(`
+    DELETE FROM chat_messages
+    WHERE type = 'guild'
+      AND guild_id = ?
+      AND id NOT IN (
+        SELECT id
+        FROM chat_messages
+        WHERE type = 'guild'
+          AND guild_id = ?
+        ORDER BY id DESC
+        LIMIT 20
+      )
+  `).run(guild.guild_id, guild.guild_id);
+
+  trimChatTable();
+
+  res.json({
+    ok: true,
+    id: info.lastInsertRowid
+  });
+});
+
+app.get("/api/chat/guild/list", auth, (req, res) => {
+  const guild = getMyGuild(req.user.id);
+
+  if (!guild) {
+    return res.status(400).json({ error: "你还没有加入帮会" });
+  }
+
+  const rows = db.prepare(`
+    SELECT id, type, from_username, guild_id, text, created_at
+    FROM (
+      SELECT id, type, from_username, guild_id, text, created_at
+      FROM chat_messages
+      WHERE type = 'guild'
+        AND guild_id = ?
+      ORDER BY id DESC
+      LIMIT 20
+    )
+    ORDER BY id ASC
+  `).all(guild.guild_id);
+
+  res.json(rows);
+});
+
+/* =========================
+   GM 后台接口
+========================= */
 
 app.post("/api/gm/grant", gmAuth, (req, res) => {
   const username = String(req.body.username || "").trim();
@@ -330,6 +918,8 @@ app.post("/api/gm/grant", gmAuth, (req, res) => {
     save.tenExpPills = Math.max(0, Math.floor(Number(save.tenExpPills) || 0)) + amount;
   } else if (type === "vipTrialLow") {
     save.vipTrialLow = Math.max(0, Math.floor(Number(save.vipTrialLow) || 0)) + amount;
+  } else if (type === "guildToken") {
+    save.guildToken = Math.max(0, Math.floor(Number(save.guildToken) || 0)) + amount;
   } else if (type === "universalShard") {
     const allowed = [
       "normal",
@@ -498,35 +1088,9 @@ app.post("/api/gm/clear-shards", gmAuth, (req, res) => {
   });
 });
 
-app.post("/api/ranking", auth, (req, res) => {
-  const power = Math.max(0, Math.floor(Number(req.body.power) || 0));
-  const level = Math.max(1, Math.floor(Number(req.body.level) || 1));
-  const vip = Math.max(0, Math.floor(Number(req.body.vip) || 0));
-
-  db.prepare(`
-    INSERT INTO rankings (user_id, username, power, level, vip, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(user_id) DO UPDATE SET
-      username = excluded.username,
-      power = excluded.power,
-      level = excluded.level,
-      vip = excluded.vip,
-      updated_at = excluded.updated_at
-  `).run(req.user.id, req.user.username, power, level, vip, Date.now());
-
-  res.json({ ok: true });
-});
-
-app.get("/api/ranking", (req, res) => {
-  const rows = db.prepare(`
-    SELECT username, power, level, vip, updated_at
-    FROM rankings
-    ORDER BY power DESC, level DESC, vip DESC
-    LIMIT 50
-  `).all();
-
-  res.json(rows);
-});
+/* =========================
+   首页
+========================= */
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "game.html"));

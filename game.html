@@ -35,7 +35,7 @@ h1,h2,h3{margin:.2em 0 .55em}p{line-height:1.65}.tag{display:inline-flex;border:
       <div class="brand">南黎文字挂机传</div>
       <div class="sub">主线挂机 · VIP副本 · 暴打风油 · 万能碎片 · 锻造石强化 · 兑换码礼包</div>
     </div>
-    <div class="row"><button class="ghost" onclick="Game.save(); Online.uploadSave()">保存</button><button class="danger" onclick="Game.reset()">重置</button></div>
+    <div class="row"><button class="ghost" onclick="Game.save(); if(location.protocol!=='file:') Online.uploadSave()">保存</button><button class="danger" onclick="Game.reset()">重置</button></div>
   </div>
   <div id="app"></div>
 </div>
@@ -152,14 +152,18 @@ let S=load(),lastRender=0;
 
 function fresh(){
  const weapon=newEquip("weapon",1,1),armor=newEquip("armor",1,1);
- return{tab:"home",level:1,exp:0,yuanbao:0,forgeStones:0,gift:false,doubleExpPills:0,tripleExpPills:0,fiveExpPills:0,tenExpPills:0,expBuffUntil:0,expBuffMult:1,doubleExpUntil:0,vipExp:0,vipTrialLow:0,vipTrialUntil:0,mapType:"main",map:0,unlockedMain:0,bossKilled:{},bossDate:"",bossUsed:{},fengyouDate:"",fengyouUsed:0,killFloat:0,inventory:[weapon,armor],equipped:{weapon:weapon.id,armor:armor.id,pants:null,shoes:null,helmet:null,jewelry:null,artifact:null},partners:{},carried:[],showAllPartners:false,universalShards:{normal:0,good:0,rare:0,epic:0,legend:0,myth:0,supreme:0,chroma:0,god:0,black:0,zenlegend:0}
-,logs:["欢迎来到南黎文字挂机传。"],tasks:[],taskDate:"",vipGifts:{},vipGiftVersion:2,partnerDraws:0,partnerLegendPity:0,partnerShanyuPity:0,equipDraws:0,equipLegendaryPity:0,equipColorPity:0,autoBreakBlue:false,last:Date.now(),quickDate:"",quickUsed:0,stats:{kills:0,boss:0},antiAddiction:false,antiHour:"",antiSeconds:0};
+ return{tab:"home",level:1,exp:0,yuanbao:0,yuanbao:0,forgeStones:0,guildToken:0,gift:false,doubleExpPills:0,tripleExpPills:0,fiveExpPills:0,tenExpPills:0,expBuffUntil:0,expBuffMult:1,doubleExpUntil:0,vipExp:0,vipTrialLow:0,vipTrialUntil:0,mapType:"main",map:0,unlockedMain:0,bossKilled:{},bossDate:"",bossUsed:{},fengyouDate:"",fengyouUsed:0,killFloat:0,inventory:[weapon,armor],equipped:{weapon:weapon.id,armor:armor.id,pants:null,shoes:null,helmet:null,jewelry:null,artifact:null},partners:{},carried:[],showAllPartners:false,universalShards:{normal:0,good:0,rare:0,epic:0,legend:0,myth:0,supreme:0,chroma:0,god:0,black:0,zenlegend:0}
+,logs:["欢迎来到南黎文字挂机传。"],tasks:[],taskDate:"",vipGifts:{},vipGiftVersion:2,partnerDraws:0,partnerLegendPity:0,partnerShanyuPity:0,equipDraws:0,equipLegendaryPity:0,equipColorPity:0,autoBreakBlue:false,autoBreakQuality:3,dropBreakQuality:-1,hideKillLog:false,last:Date.now(),quickDate:"",quickUsed:0,stats:{kills:0,boss:0},antiAddiction:false,antiHour:"",antiSeconds:0};
 }
 function normalize(data){
  const base=fresh(),r=Object.assign(base,data||{});
  r.equipped=Object.assign(base.equipped,r.equipped||{});r.bossKilled=r.bossKilled||{};r.stats=Object.assign({kills:0,boss:0},r.stats||{});r.unlockedMain=Number.isFinite(r.unlockedMain)?r.unlockedMain:Math.min(r.map||0,maps.length-1);
- r.forgeStones=r.forgeStones||0;r.partners=r.partners||{};r.carried=r.carried||[];r.logs=r.logs||[];r.vipTrialLow=r.vipTrialLow||0;r.vipTrialUntil=r.vipTrialUntil||0;r.tripleExpPills=r.tripleExpPills||0;r.fiveExpPills=r.fiveExpPills||0;r.tenExpPills=r.tenExpPills||0;r.expBuffUntil=r.expBuffUntil||0;r.expBuffMult=r.expBuffMult||1;r.tasks=r.tasks||[];r.taskDate=r.taskDate||"";r.showAllPartners=!!r.showAllPartners;
+ r.forgeStones=r.forgeStones||0;
+r.guildToken=r.guildToken||0;r.partners=r.partners||{};r.carried=r.carried||[];r.logs=r.logs||[];r.vipTrialLow=r.vipTrialLow||0;r.vipTrialUntil=r.vipTrialUntil||0;r.tripleExpPills=r.tripleExpPills||0;r.fiveExpPills=r.fiveExpPills||0;r.tenExpPills=r.tenExpPills||0;r.expBuffUntil=r.expBuffUntil||0;r.expBuffMult=r.expBuffMult||1;r.tasks=r.tasks||[];r.taskDate=r.taskDate||"";r.showAllPartners=!!r.showAllPartners;
  r.bossDate=r.bossDate||"";r.bossUsed=typeof r.bossUsed==="object"&&r.bossUsed?r.bossUsed:{};r.fengyouDate=r.fengyouDate||"";r.fengyouUsed=r.fengyouUsed||0;r.vipGifts=r.vipGifts||{};r.partnerDraws=r.partnerDraws||0;r.partnerLegendPity=r.partnerLegendPity||0;r.partnerShanyuPity=r.partnerShanyuPity||0;r.equipDraws=r.equipDraws||0;r.equipLegendaryPity=r.equipLegendaryPity??r.equipLegendPity??0;r.equipColorPity=r.equipColorPity||0;r.autoBreakBlue=!!r.autoBreakBlue;
+r.autoBreakQuality=Number.isFinite(r.autoBreakQuality)?r.autoBreakQuality:(r.autoBreakBlue?3:-1);
+r.dropBreakQuality=Number.isFinite(r.dropBreakQuality)?r.dropBreakQuality:-1;
+r.hideKillLog=!!r.hideKillLog;
  r.universalShards=Object.assign(base.universalShards,r.universalShards||{});
  for(const k in r.partners){const p=r.partners[k];if(p.level&&!p.star)p.star=p.level;p.star=p.star||1;p.shards=p.shards||0}
  r.antiAddiction=!!r.antiAddiction;
@@ -216,6 +220,14 @@ if(source==="drop")pool=pool.filter(i=>i.index<5||tier>=6).filter(i=>i.index<6||
 }
 function rollSlot(){const pool=["weapon","armor","pants","shoes","helmet","jewelry"],w=[1,1,1,1,1,.1];let r=Math.random()*5.1;for(let i=0;i<pool.length;i++){r-=w[i];if(r<=0)return pool[i]}return"weapon"}
 function randomChromaQuality(){const pool=[{q:8,w:800},{q:9,w:180},{q:10,w:20},{q:11,w:5},{q:12,w:2},{q:13,w:1}];let total=pool.reduce((s,i)=>s+i.w,0),r=Math.random()*total;for(const i of pool){r-=i.w;if(r<=0)return i.q}return 8}
+function breakQualityOptions(selected){
+ return `<option value="-1" ${selected===-1?"selected":""}>不自动分解</option>`+
+ qualities.map((q,i)=>`<option value="${i}" ${selected===i?"selected":""}>${q.name}及以下</option>`).join("");
+}
+function breakQualityName(v){
+ if(v<0)return "不自动分解";
+ return `${qualities[v]?.name||"未知品质"}及以下`;
+}
 function shardName(q){return partnerQual[q]?.name||q}
 function addUniversalShard(q,n=1){S.universalShards[q]=(S.universalShards[q]||0)+n}
 function exchangeUniversalShard(q){const i=shardOrder.indexOf(q);if(i<0||i>=shardOrder.length-1)return log("该品质万能碎片无法继续兑换。");if((S.universalShards[q]||0)<5)return log(`${shardName(q)}万能碎片不足5个。`);S.universalShards[q]-=5;addUniversalShard(shardOrder[i+1],1);log(`消耗5个${shardName(q)}万能碎片，兑换1个${shardName(shardOrder[i+1])}万能碎片。`);render()}
@@ -236,10 +248,23 @@ function grantKills(kills,reason="挂机"){
  else if(S.mapType==="exp"){exp=map.exp*kills*(1+b.exp)*vip*expMult}
  else{exp=map.exp*kills*(1+b.exp)*vip*expMult;yb=map.yb*kills*(1+b.yb)*vip;const raw=kills*map.eq*(1+b.gear);equipCount=Math.floor(raw)+(Math.random()<raw%1?1:0)}
  gainExp(Math.floor(exp));S.yuanbao+=Math.floor(yb);S.stats.kills+=kills;
- for(let i=0;i<Math.min(equipCount,110);i++)S.inventory.push(newEquip(rollSlot(),map.tier,rollQuality(map.tier,"drop")));
+ let dropBreakCount=0,dropBreakValue=0;
+for(let i=0;i<Math.min(equipCount,110);i++){
+ const item=newEquip(rollSlot(),map.tier,rollQuality(map.tier,"drop"));
+ if((S.dropBreakQuality??-1)>=0&&item.q<=S.dropBreakQuality){
+  const value=sellValue(item);
+  S.forgeStones+=value;
+  dropBreakCount++;
+  dropBreakValue+=value;
+ }else{
+  S.inventory.push(item);
+ }
+}
  if(equipCount>110)S.forgeStones+=Math.floor((equipCount-110)*map.tier*2);
  if(S.mapType!=="vip"&&Math.random()<Math.min(.08,.006*kills))grantRandomConsumable("随机掉落");
- log(`${reason}击败 ${kills} 只怪，获得 ${fmt(exp)} 经验、${fmt(yb)} 元宝${equipCount?`、${equipCount}件装备`:""}。`);
+if(!S.hideKillLog){
+ log(`${reason}击败 ${kills} 只怪，获得 ${fmt(exp)} 经验、${fmt(yb)} 元宝${equipCount?`、${equipCount}件装备`:""}${dropBreakCount?`，自动分解${dropBreakCount}件获得${fmt(dropBreakValue)}锻造石`:""}。`);
+}
  if(Math.random()<Math.min(.34,.06+kills/220))randomEvent();
 }
 function randomEvent(){const text=funnyEvents[Math.floor(Math.random()*funnyEvents.length)],roll=Math.random(),map=currentMap();log(`随机事件：${text}`);if(roll<.28){const r=Math.floor((map.yb||20)*(14+Math.random()*26)*(1+mods().yb));S.yuanbao+=r;log(`事件奖励：${fmt(r)} 元宝。`)}else if(roll<.49&&S.mapType!=="vip"){const r=Math.floor((map.exp||20)*(14+Math.random()*25)*(1+mods().exp));gainExp(r);log(`事件奖励：${fmt(r)} 经验。`)}else if(roll<.66&&S.mapType!=="vip"){const item=newEquip(rollSlot(),map.tier,rollQuality(map.tier,"drop"));S.inventory.push(item);log(`事件奖励：${item.name}。`)}else if(roll<.75){S.doubleExpPills++;log("事件奖励：双倍经验丹 +1。")}else if(roll<.84){grantRandomConsumable("事件奖励")}else if(roll<.92){S.vipTrialLow++;log("事件奖励：初阶VIP地图体验卡 +1。")}}
@@ -261,7 +286,15 @@ function wear(id){const item=equipById(id);if(!item)return;S.equipped[item.slot]
 function bestScore(i){return equipPower(i)+(i.slot==="jewelry"?equipLuck(i)*8:0)}
 function bestEquip(){const before=power();for(const s of slotKeys){const best=S.inventory.filter(i=>i.slot===s).sort((a,b)=>bestScore(b)-bestScore(a))[0];if(best)S.equipped[s]=best.id}log(`一键穿戴完成：战力 ${fmt(before)} → ${fmt(power())}。`);render()}
 function sortInventory(){const worn=equippedIds();S.inventory.sort((a,b)=>Number(worn.has(b.id))-Number(worn.has(a.id))||slotKeys.indexOf(a.slot)-slotKeys.indexOf(b.slot)||b.q-a.q||b.tier-a.tier||b.lv-a.lv||bestScore(b)-bestScore(a));log("背包整理完成。");render()}
-function addDrawnEquip(item){if(S.autoBreakBlue&&item.q<=3){const value=Math.floor(sellValue(item)*.55);S.forgeStones+=value;return value}S.inventory.push(item);return 0}
+function addDrawnEquip(item){
+ if((S.autoBreakQuality??-1)>=0&&item.q<=S.autoBreakQuality){
+  const value=Math.floor(sellValue(item)*.55);
+  S.forgeStones+=value;
+  return value;
+ }
+ S.inventory.push(item);
+ return 0;
+}
 function drawEquip(count){const cost=count===100?30000:(count===10?3333:388);if(!spend(cost))return;let best=0,breakCount=0,breakValue=0;for(let i=0;i<count;i++){S.equipDraws++;S.equipLegendaryPity++;S.equipColorPity++;let q=S.equipColorPity>=10000?randomChromaQuality():(S.equipLegendaryPity>=1000?7:rollQuality(currentMap().tier,"gacha"));if(q>=7)S.equipLegendaryPity=0;if(q>=8)S.equipColorPity=0;best=Math.max(best,q);const value=addDrawnEquip(newEquip(rollSlot(),currentMap().tier,q));if(value){breakCount++;breakValue+=value}}log(`装备库抽取 ${count} 次，最高获得 ${qualities[best].name}${breakCount?`，自动分解${breakCount}件获得${fmt(breakValue)}锻造石`:""}。`);
 if(best>=10 && typeof Online!=="undefined"){
  Online.announce(`${Online.username||"神秘玩家"} 在装备库 ${count} 连抽中获得 ${qualities[best].name} 装备！`);
@@ -301,7 +334,28 @@ function carry(id){if(!S.partners[id])return;if(S.carried.includes(id)){S.carrie
 function partnerName(id){return partners.find(p=>p.id===id)?.name||id}
 function partnerObject(id){return partners.find(p=>p.id===id)}
 function togglePartnerView(){S.showAllPartners=!S.showAllPartners;render()}
-function toggleAutoBreak(){S.autoBreakBlue=!S.autoBreakBlue;render()}
+function toggleAutoBreak(){
+ S.autoBreakBlue=!S.autoBreakBlue;
+ if(S.autoBreakBlue&&S.autoBreakQuality<0)S.autoBreakQuality=3;
+ if(!S.autoBreakBlue)S.autoBreakQuality=-1;
+ render();
+}
+function setAutoBreakQuality(v){
+ S.autoBreakQuality=Math.floor(Number(v));
+ S.autoBreakBlue=S.autoBreakQuality>=0;
+ log(`装备抽卡自动分解设置为：${breakQualityName(S.autoBreakQuality)}。`);
+ render();
+}
+function setDropBreakQuality(v){
+ S.dropBreakQuality=Math.floor(Number(v));
+ log(`地图掉落自动分解设置为：${breakQualityName(S.dropBreakQuality)}。`);
+ render();
+}
+function toggleHideKillLog(){
+ S.hideKillLog=!S.hideKillLog;
+ log(S.hideKillLog?"已隐藏小怪击杀收益日志。":"已显示小怪击杀收益日志。");
+ render();
+}
 function quickGain(){resetDaily();if(S.quickUsed>=quickLimit())return log("今日一键收益次数不足。");S.quickUsed++;const seconds=S.mapType==="vip"?1440:7200;tick(seconds,false);log(S.mapType==="vip"?"当前在VIP副本，2小时收益缩减为1/5，实际结算24分钟收益。":"领取2小时挂机收益。");render()}
 function randomTask(){const taskSlots=slotKeys.filter(s=>s!=="artifact"),slot=taskSlots[Math.floor(Math.random()*taskSlots.length)],q=clamp(Math.floor(Math.random()*(Math.min(7,2+Math.floor(S.unlockedMain/4))+1)),0,qualities.length-1),tier=clamp(1+Math.floor(Math.random()*(Math.min(currentMap().tier,18)+1)),1,26),base=(q+1)*tier;return{id:makeId(),slot,q,tier,done:false,reward:{yb:Math.floor(base*(55+q*22)),exp:Math.floor(base*(currentMap().exp||30)*(6.5+q*.9)),vip:Math.floor(base*(8+q*2.2)),forge:Math.floor(base*(18+q*6)),pill:Math.random()<.28?(Math.random()<.65?3:Math.random()<.9?5:10):0}}}
 function refreshTasks(force=false){const d=new Date().toDateString();if(!force&&S.tasks.length)return;S.taskDate=d;S.tasks=Array.from({length:4},randomTask);log("任务栏刷新了新的指定装备任务。")}
@@ -319,6 +373,16 @@ function makeCodeArtifact(){return{id:"perm_shanyu_code_artifact",slot:"artifact
 function savePermArtifact(item){PERM.artifact=structuredClone(item);savePerm()}
 function syncArtifact(){if(!PERM.artifactClaimed)return;if(!PERM.artifact)PERM.artifact=makeCodeArtifact();PERM.artifact.tier=artifactTier();let item=S.inventory.find(i=>i.id===PERM.artifact.id);if(!item){item=structuredClone(PERM.artifact);S.inventory.push(item)}Object.assign(item,{slot:"artifact",q:10,bound:true,autoTier:true,tier:artifactTier(),name:"炫彩传奇·山雨牛逼伴生法器"});S.equipped.artifact=item.id;savePermArtifact(item)}
 function claimCodeGift(){const input=document.querySelector("#codeGiftInput"),code=input?input.value.trim():"";if(PERM.artifactClaimed)return log("口令礼包已领取，重置游戏后仍会保留。");if(code!=="山雨牛逼")return log("口令错误。");PERM.artifactClaimed=true;PERM.artifact=makeCodeArtifact();S.forgeStones+=1000;savePerm();syncArtifact();log("口令正确！获得唯一装备：炫彩传奇·山雨牛逼伴生法器，并获得1000锻造石。");render()}
+function exchangeGuildToken(){
+ if((S.universalShards.black||0)<5){
+  log("黑万能碎片不足，需要5个黑万能碎片才能兑换帮派令。");
+  return;
+ }
+ S.universalShards.black-=5;
+ S.guildToken=(S.guildToken||0)+1;
+ log("消耗5个黑万能碎片，兑换帮派令×1。");
+ render();
+}
 function currentHourKey(){
  const d=new Date();
  return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate()+"-"+d.getHours();
@@ -351,8 +415,8 @@ function tab(name){S.tab=name;render()}
 function render(){
  resetDaily();syncArtifact();checkTrial();
  const level=vipLevel(),previous=vipNeed[level]||0,next=vipNeed[Math.min(15,level+1)]||vipNeed[15];
- app.innerHTML=`<div class="tabs">${[["home","主页"],["map","地图"],["dungeon","副本"],["equip","装备"],["partner","伙伴"],["gacha","抽卡"],["vip","VIP"],["task","任务栏"],["gift","礼包"]].map(([id,name])=>`<button class="${S.tab===id?"on":""}" onclick="Game.tab('${id}')">${name}</button>`).join("")}</div>
- ${S.tab==="home"?homeHTML(level,previous,next):""}${S.tab==="map"?mapHTML():""}${S.tab==="dungeon"?dungeonHTML():""}${S.tab==="equip"?equipHTML():""}${S.tab==="partner"?partnerHTML():""}${S.tab==="gacha"?gachaHTML():""}${S.tab==="vip"?vipHTML(level,previous,next):""}${S.tab==="task"?taskHTML():""}${S.tab==="gift"?giftHTML():""}`;
+ app.innerHTML=`<div class="tabs">${[["home","主页"],["map","地图"],["dungeon","副本"],["equip","装备"],["partner","伙伴"],["gacha","抽卡"],["vip","VIP"],["task","任务栏"],["chat","聊天"],["guild","帮会"],["gift","礼包"]].map(([id,name])=>`<button class="${S.tab===id?"on":""}" onclick="Game.tab('${id}')">${name}</button>`).join("")}</div>
+ ${S.tab==="home"?homeHTML(level,previous,next):""}${S.tab==="map"?mapHTML():""}${S.tab==="dungeon"?dungeonHTML():""}${S.tab==="equip"?equipHTML():""}${S.tab==="partner"?partnerHTML():""}${S.tab==="gacha"?gachaHTML():""}${S.tab==="vip"?vipHTML(level,previous,next):""}${S.tab==="task"?taskHTML():""}${S.tab==="chat"?chatHTML():""}${S.tab==="guild"?guildHTML():""}${S.tab==="gift"?giftHTML():""}`;
  lastRender=Date.now();
 }
 function taskSummaryHTML(){const all=S.unlockedMain>=maps.length-1&&S.bossKilled[maps.length-1],i=Math.min(S.unlockedMain,maps.length-1);return `<div class="panel"><h2>当前任务</h2><p>${all?"全部主线BOSS均已击败。继续刷副本、收集炫彩装备、提升伙伴星级与VIP等级。":`击败【${maps[i].boss}】，解锁下一阶段地图。`}</p><div class="stat"><div>当前挂机<br><b>${currentMap().name}</b></div><div>BOSS门槛<br><b>${fmt(bossPower(i))}</b></div><div>当前BOSS次数<br><b>${bossUse(i)}/3</b></div><div>暴打风油<br><b>${S.fengyouUsed}/5</b></div></div><p class="muted">后备伙伴也会根据品质和星级提供少量属性；上阵伙伴提供完整属性。</p></div>`}
@@ -361,7 +425,7 @@ function homeHTML(vip,previous,next){
  const expP=clamp(S.exp/expNeed()*100,0,100),vipP=vip>=15?100:clamp((S.vipExp-previous)/(next-previous)*100,0,100),b=mods(),trialLeft=S.vipTrialUntil?Math.max(0,Math.ceil((S.vipTrialUntil-Date.now())/1000)):0,buffLeft=Date.now()<S.expBuffUntil?Math.ceil((S.expBuffUntil-Date.now())/1000):0,nextBoss=Math.min(S.unlockedMain,maps.length-1);
  return `<div class="panel"><h2>南黎 Lv.${S.level}</h2><div class="stat"><div>战力<br><span class="big">${fmt(power())}</span></div><div>门槛战力<br><span class="big">${fmt(gatePower())}</span></div><div>元宝<br><span class="big gold">${fmt(S.yuanbao)}</span></div><div>锻造石<br><span class="big gold">${fmt(S.forgeStones)}</span></div><div>气运<br><span class="big">${fmt(totalLuck())}</span></div><div>VIP<br><span class="big">V${vip}</span></div><div>当前地图<br><span class="big">${currentMap().name}</span></div></div>
  <div class="notice"><b>角色经验：${fmt(S.exp)} / ${fmt(expNeed())}</b><div class="bar"><span style="width:${expP}%"></span></div><b>VIP经验：${fmt(S.vipExp)}${vip<15?` / ${fmt(next)}`:"（已满级）"}</b><div class="bar vip"><span style="width:${vipP}%"></span></div>总击杀：${fmt(S.stats.kills)}　BOSS击杀：${fmt(S.stats.boss)}　当前BOSS次数：${bossUse(nextBoss)}/3<br>当前经验倍率：×${activeExpMult()}　${buffLeft?`高倍丹剩余：${Math.floor(buffLeft/60)}分${buffLeft%60}秒`:(Date.now()<S.doubleExpUntil?`双倍剩余：${Math.ceil((S.doubleExpUntil-Date.now())/60000)}分钟`:"未开启")}<br>初阶VIP体验卡：${S.vipTrialLow}　体验通道剩余：${trialLeft?Math.floor(trialLeft/60)+"分"+trialLeft%60+"秒":"未开启"}<br>装备抽卡：总计 ${fmt(S.equipDraws)} 次，传奇保底 ${S.equipLegendaryPity}/1000，炫彩保底 ${S.equipColorPity}/10000<br>伙伴抽卡：总计 ${fmt(S.partnerDraws)} 次，传说保底 ${S.partnerLegendPity}/100，山雨保底 ${S.partnerShanyuPity}/1000</div>
- <div class="row"><button class="goldBtn" onclick="Game.claimGift()" ${S.gift?"disabled":""}>领取新手礼包</button><button onclick="Game.usePill()">双倍经验丹 ×${S.doubleExpPills}</button><button onclick="Game.useMultiPill(3)">三倍经验丹 ×${S.tripleExpPills}</button><button onclick="Game.useMultiPill(5)">五倍经验丹 ×${S.fiveExpPills}</button><button onclick="Game.useMultiPill(10)">十倍经验丹 ×${S.tenExpPills}</button><button onclick="Game.quickGain()" ${S.quickUsed>=quickLimit()?"disabled":""}>领取2小时收益 ${S.quickUsed}/${quickLimit()}</button><button class="goldBtn" onclick="Game.enterTrialVip()">初阶VIP体验通道</button><label class="tag"><input type="checkbox" ${S.antiAddiction?"checked":""} onchange="Game.toggleAntiAddiction()"> 防沉迷：每小时20分钟</label><span class="tag">本小时已玩 ${Math.floor((S.antiSeconds||0)/60)}分${(S.antiSeconds||0)%60}秒</span></div></div>
+ <div class="row"><button class="goldBtn" onclick="Game.claimGift()" ${S.gift?"disabled":""}>领取新手礼包</button><button onclick="Game.usePill()">双倍经验丹 ×${S.doubleExpPills}</button><button onclick="Game.useMultiPill(3)">三倍经验丹 ×${S.tripleExpPills}</button><button onclick="Game.useMultiPill(5)">五倍经验丹 ×${S.fiveExpPills}</button><button onclick="Game.useMultiPill(10)">十倍经验丹 ×${S.tenExpPills}</button><button onclick="Game.quickGain()" ${S.quickUsed>=quickLimit()?"disabled":""}>领取2小时收益 ${S.quickUsed}/${quickLimit()}</button><button class="goldBtn" onclick="Game.enterTrialVip()">初阶VIP体验通道</button><label class="tag"><input type="checkbox" ${S.antiAddiction?"checked":""} onchange="Game.toggleAntiAddiction()"> 防沉迷：每小时20分钟</label><span class="tag">地图掉落自动分解：${breakQualityName(S.dropBreakQuality??-1)}</span><select onchange="Game.setDropBreakQuality(this.value)">${breakQualityOptions(S.dropBreakQuality??-1)}</select><label class="tag"><input type="checkbox" ${S.hideKillLog?"checked":""} onchange="Game.toggleHideKillLog()"> 隐藏小怪收益日志</label></div></div>
  <div class="two"><div class="panel"><h3>携带伙伴</h3>${S.carried.length?S.carried.map(id=>{const p=partnerObject(id),o=S.partners[id];return `<p><span class="${partnerQual[p.q].c}">[${partnerQual[p.q].name}] ${p.name} ${o.star}星</span><br><span class="muted">${effectText(p,o.star)}</span></p>`}).join(""):"<p class='muted'>暂无携带伙伴。</p>"}</div><div class="panel"><h3>当前伙伴总加成</h3><p>经验 +${(b.exp*100).toFixed(1)}%　元宝 +${(b.yb*100).toFixed(1)}%<br>战力 +${(b.power*100).toFixed(1)}%　装备掉率 +${(b.gear*100).toFixed(1)}%<br>高品质权重 +${(b.rare*100).toFixed(1)}%　击杀速度 +${(b.kill*100).toFixed(1)}%<br>离线收益 +${(b.offline*100).toFixed(1)}%　强化费用 -${(b.discount*100).toFixed(1)}%</p></div></div>${taskSummaryHTML()}${logHTML(35)}`;
 }
 function mapHTML(){return `<div class="panel"><h2>主线地图</h2><p class="muted">每张地图BOSS挑战次数独立计算，每张地图每日最多3次。</p><div class="grid">${maps.map((m,i)=>{const locked=i>S.unlockedMain,k=!!S.bossKilled[i],used=bossUse(i);return `<div class="card ${S.mapType==="main"&&S.map===i?"selected":""}"><h3>${i+1}. ${m.name}</h3><p>挂机门槛：${fmt(m.req)}<br>每怪经验：${fmt(m.exp)}　元宝：${fmt(m.yb)}<br>装备掉率：${(m.eq*100).toFixed(1)}%<br>BOSS：${m.boss}<br>BOSS门槛：${fmt(bossPower(i))}<br>本地图今日BOSS次数：${used}/3<br>${k?"<span class='good'>已击败</span>":"<span class='bad'>尚未击败</span>"}</p><button onclick="Game.selectMap('main',${i})" ${locked||gatePower()<m.req?"disabled":""}>进入挂机</button><button class="goldBtn" onclick="Game.challengeBoss(${i})" ${locked||gatePower()<bossPower(i)||used>=3?"disabled":""}>挑战BOSS</button></div>`}).join("")}</div></div>`}
@@ -372,16 +436,87 @@ function dungeonHTML(){return `<div class="panel"><h2>特殊副本：暴打风�
 function equipLine(i){return `<span class="${qualities[i.q].c}"><b>${i.name} +${i.lv}</b></span><br><span class="muted">${slots[i.slot]} · ${qualities[i.q].name} · 阶级${i.tier} · 战力 ${fmt(equipPower(i))}${i.slot==="jewelry"?` · 气运 ${fmt(equipLuck(i))}`:""}</span>`}
 function equipHTML(){return `<div class="panel"><div class="row"><h2 style="margin-right:auto">装备栏</h2><button class="goldBtn" onclick="Game.bestEquip()">一键穿戴最佳装备</button><button onclick="Game.sortInventory()">整理背包</button><button class="danger" onclick="Game.sellUnequipped()">一键分解其他装备</button></div><p class="muted">强化装备不再消耗元宝，只消耗锻造石。分解装备只获得锻造石。</p><div class="grid">${slotKeys.map(s=>{const i=equipById(S.equipped[s]);return `<div class="equipSlot"><b>${slots[s]}</b><br>${i?equipLine(i):"<span class='muted'>未装备</span>"}</div>`}).join("")}</div></div><div class="panel"><h2>背包装备</h2><div class="grid">${S.inventory.map(i=>`<div class="card">${equipLine(i)}${equippedIds().has(i.id)?"<p class='gold'>当前穿戴中</p>":""}${i.bound?"<p class='good'>绑定装备，重置不清空</p>":""}<p class="muted">强化消耗：${fmt(forgeCost(i))} 锻造石；分解获得：${fmt(sellValue(i))} 锻造石</p><div class="row"><button onclick="Game.wear('${i.id}')">装备</button><button onclick="Game.enhance('${i.id}')">强化</button><button class="danger" onclick="Game.sell('${i.id}')">分解</button></div></div>`).join("")}</div></div>`}
 function partnerHTML(){const visible=S.showAllPartners?partners.filter(p=>!p.hidden||S.partners[p.id]):partners.filter(p=>S.partners[p.id]);const list=visible.sort((a,b)=>(S.carried.includes(b.id)-S.carried.includes(a.id))+(partnerQual[b.q].rank-partnerQual[a.q].rank)*10+((S.partners[b.id]?.star||0)-(S.partners[a.id]?.star||0)));return `<div class="panel"><div class="row"><h2 style="margin-right:auto">伙伴</h2><button onclick="Game.sortPartners()">整理伙伴</button><button onclick="Game.togglePartnerView()">${S.showAllPartners?"只显示已拥有":"查看全部图鉴"}</button></div><p>隐藏伙伴未获得前不会显示；后备伙伴也会根据品质和星级提供少量属性。黑品质伙伴夏永康携带后所有属性下降50%。</p><div class="notice"><h3>万能碎片</h3><div class="grid">${shardOrder.map((q,i)=>`<div class="card"><b class="${partnerQual[q].c}">${shardName(q)}万能碎片</b><br>数量：${S.universalShards[q]||0}<div class="row"><button onclick="Game.exchangeUniversalShard('${q}')" ${i>=shardOrder.length-1||((S.universalShards[q]||0)<5)?"disabled":""}>5合1兑换</button><button class="goldBtn" onclick="Game.exchangeAllUniversalShard('${q}')" ${i>=shardOrder.length-1||((S.universalShards[q]||0)<5)?"disabled":""}>一键合成</button></div></div>`).join("")}</div></div>${list.length?"":`<p class="muted">还没有伙伴，去抽卡页面抽取。</p>`}<div class="grid">${list.map(p=>{const o=S.partners[p.id],star=o?.star||1,carried=S.carried.includes(p.id),need=o&&star<6?star*2+1:0,universal=S.universalShards[p.q]||0;return `<div class="card ${carried?"selected":""}"><h3><span class="${partnerQual[p.q].c}">[${partnerQual[p.q].name}]</span> ${p.name}</h3><p><b>${o?`${star}星`:"未获得"}</b>${p.hidden?"　<span class='gold'>隐藏</span>":""}</p><p><b>1星基础：</b><br>${effectText(p,1)}</p>${o?`<p class="good"><b>当前生效：</b><br>${effectText(p,star)}</p>`:""}<p class="muted">星级倍率：×${starMultiplier(star).toFixed(2)}<br>个人碎片：${o?.shards||0}${o&&star<6?` / ${need}`:""}<br>可用${shardName(p.q)}万能碎片：${universal}</p><div class="row"><button onclick="Game.carry('${p.id}')" ${!o?"disabled":""}>${carried?"卸下":"携带"}</button><button onclick="Game.useUniversalShard('${p.id}')" ${!o||star>=6||universal<need?"disabled":""}>万能碎片升星</button><button onclick="Game.breakPartnerShards('${p.id}')" ${!o||!o.shards?"disabled":""}>分解个人碎片</button></div></div>`}).join("")}</div></div>`}
-function gachaHTML(){return `<div class="two"><div class="panel"><h2>装备库</h2><p>装备抽卡总数：${fmt(S.equipDraws)} 次<br>传奇装备保底：${S.equipLegendaryPity}/1000<br>炫彩装备保底：${S.equipColorPity}/10000<br>自动分解：${S.autoBreakBlue?"蓝色品质及以下装备会低价分解为锻造石":"未开启"}</p><div class="row"><button onclick="Game.drawEquip(1)">抽1次 · 388元宝</button><button onclick="Game.drawEquip(10)">抽10次 · 3333元宝</button><button class="goldBtn" onclick="Game.drawEquip(100)">抽100次 · 30000元宝</button><label class="tag"><input type="checkbox" ${S.autoBreakBlue?"checked":""} onchange="Game.toggleAutoBreak()"> 自动分解蓝色品质及以下</label></div></div><div class="panel"><h2>伙伴抽卡</h2><p>伙伴抽卡总数：${fmt(S.partnerDraws)} 次<br>传说伙伴保底：${S.partnerLegendPity}/100<br>山雨保底：${S.partnerShanyuPity}/1000<br>炫彩伙伴风油/丁文霞只能通过暴打风油获得。</p><button onclick="Game.drawPartner(1)">抽1次 · 999元宝</button><button onclick="Game.drawPartner(10)">抽10次 · 8888元宝</button><button class="goldBtn" onclick="Game.drawPartner(100)">抽100次 · 80000元宝</button></div></div><div class="panel"><h2>刮刮乐</h2><p>消耗元宝刮奖，可获得不同数量的锻造石，小概率中大奖。</p><div class="row"><button onclick="Game.scratchCard(1)">刮1次 · 600元宝</button><button onclick="Game.scratchCard(10)">刮10次 · 5500元宝</button><button class="goldBtn" onclick="Game.scratchCard(100)">刮100次 · 50000元宝</button></div></div><div class="panel"><h3>装备品质</h3>${qualities.map(q=>`<span class="tag ${q.c}">${q.name}</span>`).join(" ")}<h3>伙伴品质</h3>${Object.values(partnerQual).map(q=>`<span class="tag ${q.c}">${q.name}</span>`).join(" ")}</div>`}
+function gachaHTML(){return `<div class="two"><div class="panel"><h2>装备库</h2><p>装备抽卡总数：${fmt(S.equipDraws)} 次<br>传奇装备保底：${S.equipLegendaryPity}/1000<br>炫彩装备保底：${S.equipColorPity}/10000<br>自动分解：${S.autoBreakBlue?"蓝色品质及以下装备会低价分解为锻造石":"未开启"}</p><div class="row"><button onclick="Game.drawEquip(1)">抽1次 · 388元宝</button><button onclick="Game.drawEquip(10)">抽10次 · 3333元宝</button><button class="goldBtn" onclick="Game.drawEquip(100)">抽100次 · 30000元宝</button><label class="tag">
+ 装备抽卡自动分解：
+ <select onchange="Game.setAutoBreakQuality(this.value)">
+  ${breakQualityOptions(S.autoBreakQuality??-1)}
+ </select>
+</label></div></div><div class="panel"><h2>伙伴抽卡</h2><p>伙伴抽卡总数：${fmt(S.partnerDraws)} 次<br>传说伙伴保底：${S.partnerLegendPity}/100<br>山雨保底：${S.partnerShanyuPity}/1000<br>炫彩伙伴风油/丁文霞只能通过暴打风油获得。</p><button onclick="Game.drawPartner(1)">抽1次 · 999元宝</button><button onclick="Game.drawPartner(10)">抽10次 · 8888元宝</button><button class="goldBtn" onclick="Game.drawPartner(100)">抽100次 · 80000元宝</button></div></div><div class="panel"><h2>刮刮乐</h2><p>消耗元宝刮奖，可获得不同数量的锻造石，小概率中大奖。</p><div class="row"><button onclick="Game.scratchCard(1)">刮1次 · 600元宝</button><button onclick="Game.scratchCard(10)">刮10次 · 5500元宝</button><button class="goldBtn" onclick="Game.scratchCard(100)">刮100次 · 50000元宝</button></div></div><div class="panel"><h3>装备品质</h3>${qualities.map(q=>`<span class="tag ${q.c}">${q.name}</span>`).join(" ")}<h3>伙伴品质</h3>${Object.values(partnerQual).map(q=>`<span class="tag ${q.c}">${q.name}</span>`).join(" ")}</div>`}
 function vipHTML(level,previous,next){const p=level>=15?100:clamp((S.vipExp-previous)/(next-previous)*100,0,100);return `<div class="panel"><h2>VIP系统 V${level}</h2><p>VIP礼包已重做，高等级礼包提供大量元宝、锻造石、高倍经验丹、高阶装备和万能碎片。</p><div class="bar vip"><span style="width:${p}%"></span></div><p>VIP经验：${fmt(S.vipExp)}${level<15?` / ${fmt(next)}`:"（已满级）"}<br>挂机收益加成：${((vipRewardMult()-1)*100).toFixed(1)}%<br>每日2小时收益次数：${quickLimit()}<br>初阶VIP体验卡：${S.vipTrialLow}</p><button class="goldBtn" onclick="Game.enterTrialVip()">使用体验通道进入初阶VIP地图10分钟</button></div><div class="panel"><h3>VIP等级礼包</h3><div class="grid">${vipNeed.map((need,i)=>`<div class="card ${level===i?"selected":""}"><h3>V${i}</h3><p>门槛：${fmt(need)} VIP经验<br>礼包：${vipGiftText(i)}</p><button class="goldBtn" onclick="Game.claimVipGift(${i})" ${level<i||S.vipGifts[i]?"disabled":""}>${S.vipGifts[i]?"已领取":"领取礼包"}</button></div>`).join("")}</div></div>`}
 function taskRequirementText(t){return `提交未穿戴的 ${qualities[t.q].name}及以上 · ${slots[t.slot]} · 阶级${t.tier}及以上`}
 function taskHTML(){refreshTasks();return `${taskSummaryHTML()}<div class="panel"><div class="row"><h2 style="margin-right:auto">随机指定装备任务</h2><button onclick="Game.refreshTasks()">手动刷新任务</button></div><p class="muted">任务奖励根据提交要求品质与阶级计算；任务会消耗一件符合条件且未穿戴的装备。</p><div class="grid">${S.tasks.map(t=>{const ok=S.inventory.some(i=>!equippedIds().has(i.id)&&taskItemMatch(i,t));return `<div class="card ${t.done?"selected":""}"><h3>${t.done?"已完成":"装备委托"}</h3><p>${taskRequirementText(t)}</p><p class="gold">奖励：${fmt(t.reward.exp)}经验、${fmt(t.reward.yb)}元宝、${fmt(t.reward.vip)}VIP经验、${fmt(t.reward.forge||0)}锻造石${t.reward.pill?`、${t.reward.pill}倍经验丹×1`:""}</p><button class="goldBtn" onclick="Game.completeTask('${t.id}')" ${t.done||!ok?"disabled":""}>提交完成</button>${!ok&&!t.done?`<p class="bad">暂无符合条件的未穿戴装备</p>`:""}</div>`}).join("")}</div></div>${logHTML()}`}
+function chatHTML(){
+ return `<div class="panel">
+ <h2>聊天频道</h2>
+ <p class="muted">世界、私聊、帮会聊天共用发言冷却：每人3秒只能发一条。</p>
+ <div class="two">
+  <div class="panel">
+   <h3>世界聊天</h3>
+   <div id="worldChatBox" class="log" style="height:220px"></div>
+   <div class="row">
+    <input id="worldChatInput" placeholder="输入世界聊天内容，最多80字">
+    <button onclick="Online.sendWorldChat()">发送世界</button>
+    <button class="ghost" onclick="Online.loadWorldChat()">刷新</button>
+   </div>
+  </div>
+  <div class="panel">
+   <h3>私聊</h3>
+   <input id="privateTarget" placeholder="私聊对象用户名">
+   <div id="privateChatBox" class="log" style="height:220px"></div>
+   <div class="row">
+    <input id="privateChatInput" placeholder="输入私聊内容，最多80字">
+    <button onclick="Online.sendPrivateChat()">发送私聊</button>
+    <button class="ghost" onclick="Online.loadPrivateChat()">刷新私聊</button>
+   </div>
+  </div>
+ </div>
+ <div class="panel">
+  <h3>帮会聊天</h3>
+  <div id="guildChatBox" class="log" style="height:220px"></div>
+  <div class="row">
+   <input id="guildChatInput" placeholder="输入帮会聊天内容，最多80字">
+   <button onclick="Online.sendGuildChat()">发送帮会</button>
+   <button class="ghost" onclick="Online.loadGuildChat()">刷新帮会聊天</button>
+  </div>
+  <p id="chatStatus" class="muted"></p>
+ </div>
+ </div>`;
+}
+function guildHTML(){
+ return `<div class="panel">
+ <h2>帮会系统</h2>
+ <p class="muted">消耗5个黑万能碎片可兑换1个帮派令。创建帮会需要消耗1个帮派令。</p>
+ <div class="stat">
+  <div>帮派令<br><span class="big gold">${S.guildToken||0}</span></div>
+  <div>黑万能碎片<br><span class="big">${S.universalShards.black||0}</span></div>
+ </div>
+ <div class="row" style="margin-top:12px">
+  <button class="goldBtn" onclick="Game.exchangeGuildToken()">5黑碎片兑换帮派令</button>
+  <input id="guildNameInput" placeholder="帮会名称，2-16位">
+  <button onclick="Online.createGuild()">创建帮会</button>
+  <button onclick="Online.joinGuildFromInput()">加入帮会</button>
+  <button class="danger" onclick="Online.leaveGuild()">退出/解散帮会</button>
+  <button class="ghost" onclick="Online.loadGuildInfo();Online.loadGuildList()">刷新帮会</button>
+ </div>
+ <div class="two" style="margin-top:14px">
+  <div class="panel">
+   <h3>我的帮会</h3>
+   <div id="guildInfoBox" class="notice">未加载</div>
+  </div>
+  <div class="panel">
+   <h3>帮会列表</h3>
+   <div id="guildListBox" class="grid">未加载</div>
+  </div>
+ </div>
+ <p id="guildStatus" class="muted"></p>
+ </div>`;
+}
 function giftHTML(){return `<div class="panel"><h2>礼包中心</h2><p class="muted">兑换码礼包放在独立页面，不受主页动态刷新影响。输入指定口令可获得唯一伴生法器，重置游戏不会清空。</p><div class="row"><input id="codeGiftInput" placeholder="请输入兑换码"><button class="goldBtn" onclick="Game.claimCodeGift()" ${PERM.artifactClaimed?"disabled":""}>领取兑换码礼包</button></div><p>${PERM.artifactClaimed?"<span class='good'>已领取：炫彩传奇·山雨牛逼伴生法器</span>":"口令提示：山雨牛逼"}</p></div><div class="panel"><h2>新手礼包</h2><p>8888元宝、双倍经验丹×1、初阶VIP地图体验卡×3、锻造石×300。</p><button class="goldBtn" onclick="Game.claimGift()" ${S.gift?"disabled":""}>${S.gift?"已领取":"领取新手礼包"}</button></div>`}
 
 syncArtifact();refreshTasks();calcOffline();render();
 setInterval(()=>{tick(1,false);S.last=Date.now();if(Date.now()-lastRender>1200)render();localStorage.setItem(SAVE_KEY,JSON.stringify(S))},1000);
 
-return{tab,save,reset,toggleAntiAddiction,claimCodeGift,claimGift,usePill,useMultiPill,quickGain,selectMap,enterTrialVip,challengeBoss,challengeFengyou,wear,enhance,sell,sellUnequipped,bestEquip,sortInventory,drawEquip,drawPartner,scratchCard,carry,togglePartnerView,toggleAutoBreak,sortPartners,claimVipGift,exchangeUniversalShard,exchangeAllUniversalShard,breakPartnerShards,useUniversalShard,refreshTasks:()=>{refreshTasks(true);render()},completeTask,addSystemLog:(text)=>{log(text);render();},
+return{tab,save,reset,toggleAntiAddiction,exchangeGuildToken,claimCodeGift,claimGift,usePill,useMultiPill,quickGain,selectMap,enterTrialVip,challengeBoss,challengeFengyou,wear,enhance,sell,sellUnequipped,bestEquip,sortInventory,drawEquip,drawPartner,scratchCard,carry,togglePartnerView,toggleAutoBreak,setAutoBreakQuality,setDropBreakQuality,toggleHideKillLog,sortPartners,claimVipGift,exchangeUniversalShard,exchangeAllUniversalShard,breakPartnerShards,useUniversalShard,refreshTasks:()=>{refreshTasks(true);render()},completeTask,addSystemLog:(text)=>{log(text);render();},
 getPower:()=>power(),
 getLevel:()=>S.level,
 getVip:()=>vipLevel(),
@@ -485,6 +620,10 @@ async init() {
     this.status("已登录：" + this.username);
     alert("登录成功");
     await this.downloadSave();
+this.loadWorldChat();
+this.loadGuildInfo();
+this.loadGuildList();
+this.loadGuildChat();
   },
 
   logout() {
@@ -579,6 +718,290 @@ async loadAnnouncements() {
     }
   } catch {}
 },
+authHeaders() {
+  return {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer " + this.token
+  };
+},
+
+chatStatus(text) {
+  const box = document.getElementById("chatStatus");
+  if (box) box.textContent = text;
+},
+
+guildStatus(text) {
+  const box = document.getElementById("guildStatus");
+  if (box) box.textContent = text;
+},
+
+timeText(t) {
+  try {
+    return new Date(t).toLocaleTimeString();
+  } catch {
+    return "";
+  }
+},
+
+async sendWorldChat() {
+  if (!this.token) return this.chatStatus("请先登录");
+  const input = document.getElementById("worldChatInput");
+  const text = input ? input.value.trim() : "";
+  if (!text) return this.chatStatus("请输入世界聊天内容");
+
+  const res = await fetch("/api/chat/world/send", {
+    method: "POST",
+    headers: this.authHeaders(),
+    body: JSON.stringify({ text })
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return this.chatStatus(data.error || "发送失败");
+
+  input.value = "";
+  this.chatStatus("世界消息已发送");
+  this.loadWorldChat();
+},
+
+async loadWorldChat() {
+  if (!this.token) return;
+  const box = document.getElementById("worldChatBox");
+  if (!box) return;
+
+  const res = await fetch("/api/chat/world/list", {
+    headers: {
+      "Authorization": "Bearer " + this.token
+    }
+  });
+
+  const rows = await res.json().catch(() => []);
+  box.innerHTML = rows.map(r => `<p><span class="gold">[世界]</span> ${this.timeText(r.created_at)} <b>${r.from_username}</b>：${r.text}</p>`).join("");
+  box.scrollTop = box.scrollHeight;
+},
+
+async sendPrivateChat() {
+  if (!this.token) return this.chatStatus("请先登录");
+  const target = document.getElementById("privateTarget")?.value.trim();
+  const input = document.getElementById("privateChatInput");
+  const text = input ? input.value.trim() : "";
+
+  if (!target) return this.chatStatus("请输入私聊对象");
+  if (!text) return this.chatStatus("请输入私聊内容");
+
+  const res = await fetch("/api/chat/private/send", {
+    method: "POST",
+    headers: this.authHeaders(),
+    body: JSON.stringify({
+      toUsername: target,
+      text
+    })
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return this.chatStatus(data.error || "发送失败");
+
+  input.value = "";
+  this.chatStatus("私聊已发送");
+  this.loadPrivateChat();
+},
+
+async loadPrivateChat() {
+  if (!this.token) return;
+  const target = document.getElementById("privateTarget")?.value.trim();
+  const box = document.getElementById("privateChatBox");
+  if (!box || !target) return;
+
+  const res = await fetch("/api/chat/private/list?with=" + encodeURIComponent(target), {
+    headers: {
+      "Authorization": "Bearer " + this.token
+    }
+  });
+
+  const rows = await res.json().catch(() => []);
+  if (!res.ok) {
+    box.innerHTML = "<p class='bad'>读取私聊失败</p>";
+    return;
+  }
+
+  box.innerHTML = rows.map(r => `<p><span class="gold">[私聊]</span> ${this.timeText(r.created_at)} <b>${r.from_username}</b> → <b>${r.to_username}</b>：${r.text}</p>`).join("");
+  box.scrollTop = box.scrollHeight;
+},
+
+async sendGuildChat() {
+  if (!this.token) return this.chatStatus("请先登录");
+  const input = document.getElementById("guildChatInput");
+  const text = input ? input.value.trim() : "";
+  if (!text) return this.chatStatus("请输入帮会聊天内容");
+
+  const res = await fetch("/api/chat/guild/send", {
+    method: "POST",
+    headers: this.authHeaders(),
+    body: JSON.stringify({ text })
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return this.chatStatus(data.error || "发送失败");
+
+  input.value = "";
+  this.chatStatus("帮会消息已发送");
+  this.loadGuildChat();
+},
+
+async loadGuildChat() {
+  if (!this.token) return;
+  const box = document.getElementById("guildChatBox");
+  if (!box) return;
+
+  const res = await fetch("/api/chat/guild/list", {
+    headers: {
+      "Authorization": "Bearer " + this.token
+    }
+  });
+
+  const data = await res.json().catch(() => []);
+  if (!res.ok) {
+    box.innerHTML = "<p class='muted'>你还没有加入帮会，无法查看帮会聊天。</p>";
+    return;
+  }
+
+  box.innerHTML = data.map(r => `<p><span class="gold">[帮会]</span> ${this.timeText(r.created_at)} <b>${r.from_username}</b>：${r.text}</p>`).join("");
+  box.scrollTop = box.scrollHeight;
+},
+
+async loadGuildInfo() {
+  if (!this.token) return;
+  const box = document.getElementById("guildInfoBox");
+  if (!box) return;
+
+  const res = await fetch("/api/guild/me", {
+    headers: {
+      "Authorization": "Bearer " + this.token
+    }
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!data.inGuild) {
+    box.innerHTML = "<p class='muted'>你还没有加入帮会。</p>";
+    return;
+  }
+
+  const g = data.guild;
+  const members = data.members || [];
+
+  box.innerHTML = `
+    <h3>${g.guild_name}</h3>
+    <p>会长：${g.leader_username}<br>你的职位：${g.role === "leader" ? "会长" : "成员"}<br>成员数：${members.length}</p>
+    <h4>成员列表</h4>
+    ${members.map(m => `<p>${m.role === "leader" ? "👑" : "👤"} ${m.username} - ${m.role === "leader" ? "会长" : "成员"}</p>`).join("")}
+  `;
+},
+
+async loadGuildList() {
+  if (!this.token) return;
+  const box = document.getElementById("guildListBox");
+  if (!box) return;
+
+  const res = await fetch("/api/guild/list", {
+    headers: {
+      "Authorization": "Bearer " + this.token
+    }
+  });
+
+  const rows = await res.json().catch(() => []);
+
+  if (!rows.length) {
+    box.innerHTML = "<p class='muted'>暂无帮会。</p>";
+    return;
+  }
+
+  box.innerHTML = rows.map(g => `
+    <div class="card">
+      <h3>${g.name}</h3>
+      <p>会长：${g.leader_username}<br>成员：${g.member_count}</p>
+      <button onclick="Online.joinGuild('${g.name}')">加入帮会</button>
+    </div>
+  `).join("");
+},
+
+async createGuild() {
+  if (!this.token) return this.guildStatus("请先登录");
+  const name = document.getElementById("guildNameInput")?.value.trim();
+  if (!name) return this.guildStatus("请输入帮会名称");
+
+  const res = await fetch("/api/guild/create", {
+    method: "POST",
+    headers: this.authHeaders(),
+    body: JSON.stringify({ name })
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    return this.guildStatus(data.error || "创建失败");
+  }
+
+  if (data.save && typeof Game !== "undefined" && Game.importSave) {
+    Game.importSave(data.save);
+  }
+
+  this.guildStatus(data.message || "创建成功");
+  this.loadGuildInfo();
+  this.loadGuildList();
+  this.loadGuildChat();
+},
+
+async joinGuildFromInput() {
+  const name = document.getElementById("guildNameInput")?.value.trim();
+  if (!name) return this.guildStatus("请输入要加入的帮会名称");
+  this.joinGuild(name);
+},
+
+async joinGuild(name) {
+  if (!this.token) return this.guildStatus("请先登录");
+
+  const res = await fetch("/api/guild/join", {
+    method: "POST",
+    headers: this.authHeaders(),
+    body: JSON.stringify({ name })
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    return this.guildStatus(data.error || "加入失败");
+  }
+
+  this.guildStatus(data.message || "加入成功");
+  this.loadGuildInfo();
+  this.loadGuildList();
+  this.loadGuildChat();
+},
+
+async leaveGuild() {
+  if (!this.token) return this.guildStatus("请先登录");
+
+  if (!confirm("确定退出帮会？如果你是唯一会长，将会解散帮会。")) {
+    return;
+  }
+
+  const res = await fetch("/api/guild/leave", {
+    method: "POST",
+    headers: this.authHeaders(),
+    body: JSON.stringify({})
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    return this.guildStatus(data.error || "操作失败");
+  }
+
+  this.guildStatus(data.message || "操作成功");
+  this.loadGuildInfo();
+  this.loadGuildList();
+  this.loadGuildChat();
+},
   async submitRanking() {
     if (!this.token) {
       this.status("未登录，无法上传战力");
@@ -643,7 +1066,7 @@ async loadAnnouncements() {
 
 window.addEventListener("load", () => {
   if (location.protocol === "file:") {
-    Online.status("离线模式：登录、云存档、排行榜和全服通报不可用");
+    Online.status("离线模式：登录、云存档、排行榜、聊天和帮会不可用");
     return;
   }
   Online.init();
@@ -653,6 +1076,11 @@ window.addEventListener("load", () => {
   }, 30000);
   setInterval(() => {
     Online.loadAnnouncements();
+    Online.loadWorldChat();
+    Online.loadPrivateChat();
+    Online.loadGuildChat();
+    Online.loadGuildInfo();
+    Online.loadGuildList();
   }, 5000);
 });
 </script>
