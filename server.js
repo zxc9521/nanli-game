@@ -9,6 +9,8 @@ const db = new Database("game.db");
 
 const JWT_SECRET = "nanli_change_this_to_a_long_random_secret_123456";
 const GM_SECRET = "010212zp";
+
+// 游戏内GM账号名单，必须和注册用户名完全一致
 const GM_USERS = new Set([
   "我是南黎我是傻逼"
 ]);
@@ -87,6 +89,7 @@ if (!userColumns.includes("save_updated_at")) {
 if (!userColumns.includes("banned")) {
   db.exec(`ALTER TABLE users ADD COLUMN banned INTEGER NOT NULL DEFAULT 0`);
 }
+
 if (!userColumns.includes("muted_until")) {
   db.exec(`ALTER TABLE users ADD COLUMN muted_until INTEGER NOT NULL DEFAULT 0`);
 }
@@ -143,7 +146,7 @@ function cleanText(text, max = 80) {
 }
 
 function isGameGM(username) {
-  return GAME_GM_USERS.has(String(username || ""));
+  return GM_USERS.has(String(username || ""));
 }
 
 function addGMFlag(row) {
@@ -199,7 +202,7 @@ function handleGMCommand(username, text, target = null) {
   const content = String(text || "").trim();
 
   const isCommand =
-    /^JY\s+/i.test(content) ||
+    /^JY\s+\d+$/i.test(content) ||
     /^JJY$/i.test(content) ||
     /^FH$/i.test(content) ||
     /^JFH$/i.test(content) ||
@@ -301,6 +304,7 @@ function handleGMCommand(username, text, target = null) {
 
   return gmCommandError("GM指令格式错误");
 }
+
 function checkMuted(userId) {
   const user = db.prepare(`
     SELECT muted_until
@@ -322,6 +326,7 @@ function checkMuted(userId) {
     mutedUntil: 0
   };
 }
+
 function checkChatRate(userId) {
   const now = Date.now();
   const last = lastChatTime.get(userId) || 0;
@@ -602,20 +607,7 @@ app.post("/api/announcement", auth, (req, res) => {
     return res.status(400).json({ error: "通报内容错误" });
   }
 
-  db.prepare(`
-    INSERT INTO announcements (text, created_at)
-    VALUES (?, ?)
-  `).run(text, Date.now());
-
-  db.prepare(`
-    DELETE FROM announcements
-    WHERE id NOT IN (
-      SELECT id
-      FROM announcements
-      ORDER BY id DESC
-      LIMIT 50
-    )
-  `).run();
+  addAnnouncement(text);
 
   res.json({ ok: true });
 });
@@ -644,17 +636,22 @@ app.post("/api/chat/world/send", auth, (req, res) => {
   if (!text) {
     return res.status(400).json({ error: "聊天内容不能为空" });
   }
-const gmResult = handleGMCommand(req.user.username, text, null);
+
+  // GM公告指令优先处理，不受禁言和3秒冷却影响
+  const gmResult = handleGMCommand(req.user.username, text, null);
+
   if (gmResult.handled) {
     return res.status(gmResult.status).json(gmResult.body);
   }
 
-const mute = checkMuted(req.user.id);
-if (mute.muted) {
-  return res.status(403).json({
-    error: "你已被禁言，解禁时间：" + new Date(mute.mutedUntil).toLocaleString()
-  });
-}
+  const mute = checkMuted(req.user.id);
+
+  if (mute.muted) {
+    return res.status(403).json({
+      error: "你已被禁言，解禁时间：" + new Date(mute.mutedUntil).toLocaleString()
+    });
+  }
+
   if (!checkChatRate(req.user.id)) {
     return res.status(429).json({ error: "发言太快，请3秒后再试" });
   }
@@ -722,16 +719,6 @@ app.post("/api/chat/private/send", auth, (req, res) => {
     return res.status(400).json({ error: "不能私聊自己" });
   }
 
-const mute = checkMuted(req.user.id);
-if (mute.muted) {
-  return res.status(403).json({
-    error: "你已被禁言，解禁时间：" + new Date(mute.mutedUntil).toLocaleString()
-  });
-}
-  if (!checkChatRate(req.user.id)) {
-    return res.status(429).json({ error: "发言太快，请3秒后再试" });
-  }
-
   const target = db.prepare(`
     SELECT id, username, banned
     FROM users
@@ -742,10 +729,23 @@ if (mute.muted) {
     return res.status(404).json({ error: "玩家不存在" });
   }
 
+  // GM指令优先处理，不受禁言和3秒冷却影响
   const gmResult = handleGMCommand(req.user.username, text, target);
 
   if (gmResult.handled) {
     return res.status(gmResult.status).json(gmResult.body);
+  }
+
+  const mute = checkMuted(req.user.id);
+
+  if (mute.muted) {
+    return res.status(403).json({
+      error: "你已被禁言，解禁时间：" + new Date(mute.mutedUntil).toLocaleString()
+    });
+  }
+
+  if (!checkChatRate(req.user.id)) {
+    return res.status(429).json({ error: "发言太快，请3秒后再试" });
   }
 
   if (target.banned) {
@@ -810,6 +810,7 @@ app.get("/api/chat/private/list", auth, (req, res) => {
 
   res.json(rows.map(addGMFlag));
 });
+
 app.get("/api/chat/private/inbox", auth, (req, res) => {
   const rows = db.prepare(`
     SELECT
@@ -839,6 +840,7 @@ app.get("/api/chat/private/inbox", auth, (req, res) => {
     )
     ORDER BY id ASC
   `).all(req.user.id, req.user.id);
+
   res.json(rows.map(addGMFlag));
 });
 
@@ -1048,12 +1050,14 @@ app.post("/api/chat/guild/send", auth, (req, res) => {
     return res.status(400).json({ error: "聊天内容不能为空" });
   }
 
-const mute = checkMuted(req.user.id);
-if (mute.muted) {
-  return res.status(403).json({
-    error: "你已被禁言，解禁时间：" + new Date(mute.mutedUntil).toLocaleString()
-  });
-}
+  const mute = checkMuted(req.user.id);
+
+  if (mute.muted) {
+    return res.status(403).json({
+      error: "你已被禁言，解禁时间：" + new Date(mute.mutedUntil).toLocaleString()
+    });
+  }
+
   if (!checkChatRate(req.user.id)) {
     return res.status(429).json({ error: "发言太快，请3秒后再试" });
   }
@@ -1269,6 +1273,7 @@ app.post("/api/gm/unmute", gmAuth, (req, res) => {
     message: `${user.username} 已解除禁言`
   });
 });
+
 app.post("/api/gm/ban", gmAuth, (req, res) => {
   const username = String(req.body.username || "").trim();
 
@@ -1403,6 +1408,7 @@ app.get("/", (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, () => {
   console.log("服务器已启动，端口：" + PORT);
 });
