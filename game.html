@@ -424,7 +424,28 @@ function isEditingInput(){
  const tag=el.tagName;
  return tag==="INPUT"||tag==="TEXTAREA"||tag==="SELECT";
 }
-function tab(name){S.tab=name;render()}
+function shouldSkipAutoRender(){
+ return isEditingInput() || S.tab==="chat" || S.tab==="guild";
+}
+function tab(name){
+ S.tab=name;
+ render();
+
+ setTimeout(()=>{
+  if(typeof Online==="undefined")return;
+
+  if(name==="chat"){
+   Online.loadWorldChat();
+   Online.loadPrivateChat();
+   Online.loadGuildChat();
+  }
+
+  if(name==="guild"){
+   Online.loadGuildInfo();
+   Online.loadGuildList();
+  }
+ },100);
+}
 
 function render(){
  resetDaily();syncArtifact();checkTrial();
@@ -531,11 +552,13 @@ syncArtifact();refreshTasks();calcOffline();render();
 setInterval(()=>{
  tick(1,false);
  S.last=Date.now();
- if(Date.now()-lastRender>1200&&!isEditingInput())render();
+ if(Date.now()-lastRender>1200 && !shouldSkipAutoRender()){
+  render();
+ }
  localStorage.setItem(SAVE_KEY,JSON.stringify(S));
 },1000);
 
-return{tab,save,reset,toggleAntiAddiction,exchangeGuildToken,claimCodeGift,claimGift,usePill,useMultiPill,quickGain,selectMap,enterTrialVip,challengeBoss,challengeFengyou,wear,enhance,sell,sellUnequipped,bestEquip,sortInventory,drawEquip,drawPartner,scratchCard,carry,togglePartnerView,toggleAutoBreak,setAutoBreakQuality,setDropBreakQuality,toggleHideKillLog,sortPartners,claimVipGift,exchangeUniversalShard,exchangeAllUniversalShard,breakPartnerShards,useUniversalShard,refreshTasks:()=>{refreshTasks(true);render()},completeTask,addSystemLog:(text)=>{log(text);if(!isEditingInput())render();},
+return{tab,save,reset,toggleAntiAddiction,exchangeGuildToken,claimCodeGift,claimGift,usePill,useMultiPill,quickGain,selectMap,enterTrialVip,challengeBoss,challengeFengyou,wear,enhance,sell,sellUnequipped,bestEquip,sortInventory,drawEquip,drawPartner,scratchCard,carry,togglePartnerView,toggleAutoBreak,setAutoBreakQuality,setDropBreakQuality,toggleHideKillLog,sortPartners,claimVipGift,exchangeUniversalShard,exchangeAllUniversalShard,breakPartnerShards,useUniversalShard,refreshTasks:()=>{refreshTasks(true);render()},completeTask,addSystemLog:(text)=>{log(text);if(!shouldSkipAutoRender())render();},
 getPower:()=>power(),
 getLevel:()=>S.level,
 getVip:()=>vipLevel(),
@@ -920,12 +943,16 @@ async loadGuildInfo() {
   const g = data.guild;
   const members = data.members || [];
 
-  box.innerHTML = `
+const html = `
     <h3>${g.guild_name}</h3>
     <p>会长：${g.leader_username}<br>你的职位：${g.role === "leader" ? "会长" : "成员"}<br>成员数：${members.length}</p>
     <h4>成员列表</h4>
     ${members.map(m => `<p>${m.role === "leader" ? "👑" : "👤"} ${m.username} - ${m.role === "leader" ? "会长" : "成员"}</p>`).join("")}
   `;
+if(box.dataset.lastHtml!==html){
+ box.innerHTML=html;
+ box.dataset.lastHtml=html;
+}
 },
 
 async loadGuildList() {
@@ -946,13 +973,17 @@ async loadGuildList() {
     return;
   }
 
-  box.innerHTML = rows.map(g => `
+const html = rows.map(g => `
     <div class="card">
       <h3>${g.name}</h3>
       <p>会长：${g.leader_username}<br>成员：${g.member_count}</p>
       <button onclick="Online.joinGuild('${g.name}')">加入帮会</button>
     </div>
   `).join("");
+if(box.dataset.lastHtml!==html){
+ box.innerHTML=html;
+ box.dataset.lastHtml=html;
+}
 },
 
 async createGuild() {
@@ -1101,18 +1132,18 @@ window.addEventListener("load", () => {
     return;
   }
   Online.init();
-  setInterval(() => {
-    Online.submitRanking();
-    Online.uploadSave();
-  }, 30000);
-  setInterval(() => {
-    Online.loadAnnouncements();
+setInterval(() => {
+  Online.loadAnnouncements();
+  if (document.querySelector("#worldChatBox")) {
     Online.loadWorldChat();
     Online.loadPrivateChat();
     Online.loadGuildChat();
+  }
+  if (document.querySelector("#guildInfoBox")) {
     Online.loadGuildInfo();
     Online.loadGuildList();
-  }, 5000);
+  }
+}, 5000);
 });
 </script>
 </body>
