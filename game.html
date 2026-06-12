@@ -1002,7 +1002,9 @@ if(name==="chat"){
    Online.loadGuildList();
   }
 if(name==="arena"){
+   Online.loadArenaMe();
    Online.loadArenaNearby();
+   Online.loadArenaBattles();
 }
  },100);
 }
@@ -1145,7 +1147,7 @@ function arenaHTML(){
    }).join(" "):"<p class='muted'>尚未选择技能。</p>"}
    <div class="row" style="margin-top:10px">
     <button class="danger" onclick="Game.clearArenaSkills()">清空技能</button>
-    <button onclick="Online.uploadSave()">保存竞技配置到云存档</button>
+    <button onclick="Online.saveArenaConfig()">保存竞技配置到服务器</button>
    </div>
   </div>
  </div>
@@ -1956,6 +1958,140 @@ async claimDailyRankingReward() {
     await this.uploadSave();
   }
 },
+arenaSkillName(id) {
+  const names = {
+    pojun: "破军",
+    xuangui: "玄龟",
+    jinghua: "镜花",
+    qingnang: "青囊",
+    tanlang: "贪狼",
+    suixing: "碎星",
+    shigu: "蚀骨",
+    zhuihun: "追魂",
+    tianhuo: "天火",
+    tiebi: "铁壁",
+    guixu: "归墟",
+    tianming: "天命"
+  };
+
+  return names[id] || id;
+},
+
+async saveArenaConfig() {
+  if (!this.token) {
+    alert("请先登录账号");
+    return;
+  }
+
+  if (typeof Game === "undefined" || !Game.exportSave) {
+    alert("游戏模块未加载");
+    return;
+  }
+
+  const save = Game.exportSave();
+  const skills = Array.isArray(save.arenaSkills) ? save.arenaSkills : [];
+
+  if (skills.length !== 4) {
+    alert("请先选择4个竞技场技能");
+    return;
+  }
+
+  const res = await fetch("/api/arena/config", {
+    method: "POST",
+    headers: this.authHeaders(),
+    body: JSON.stringify({
+      skills,
+      power: Game.getPower ? Game.getPower() : 0,
+      level: Game.getLevel ? Game.getLevel() : 1,
+      vip: Game.getVip ? Game.getVip() : 0
+    })
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    alert(data.error || "保存竞技配置失败");
+    return;
+  }
+
+  await this.uploadSave();
+
+  alert(data.message || "竞技场配置已保存");
+
+  this.loadArenaMe();
+  this.loadArenaNearby();
+  this.loadArenaBattles();
+},
+
+async loadArenaMe() {
+  if (!this.token) return;
+
+  const res = await fetch("/api/arena/me", {
+    headers: {
+      "Authorization": "Bearer " + this.token
+    }
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok || !data.joined) {
+    return;
+  }
+
+  const status = document.getElementById("onlineStatus");
+
+  if (status) {
+    status.textContent =
+      "已登录：" +
+      this.username +
+      "，竞技场排名 #" +
+      data.rank +
+      "，今日挑战 " +
+      data.arenaUsed +
+      "/" +
+      data.arenaLimit;
+  }
+},
+
+async loadArenaBattles() {
+  if (!this.token) return;
+
+  const res = await fetch("/api/arena/battles", {
+    headers: {
+      "Authorization": "Bearer " + this.token
+    }
+  });
+
+  const rows = await res.json().catch(() => []);
+
+  if (!res.ok || !Array.isArray(rows)) {
+    return;
+  }
+
+  const logBox = Array.from(document.querySelectorAll(".panel")).find(panel => {
+    const h2 = panel.querySelector("h2");
+    return h2 && h2.textContent.includes("最近战报");
+  })?.querySelector(".log");
+
+  if (!logBox) return;
+
+  if (!rows.length) {
+    logBox.innerHTML = "<p class='muted'>暂无服务器战报。</p>";
+    return;
+  }
+
+  logBox.innerHTML = rows.map(r => {
+    const lines = Array.isArray(r.log) ? r.log : [];
+
+    return `
+      <p>
+        <span class="gold">#${r.id}</span>
+        ${new Date(r.createdAt).toLocaleString()}<br>
+        ${lines.map(x => this.escapeHTML(x)).join("<br>")}
+      </p>
+    `;
+  }).join("");
+},
 async loadArenaNearby() {
   const box = document.getElementById("arenaNearbyBox");
   if (!box) return;
@@ -1965,51 +2101,46 @@ async loadArenaNearby() {
     return;
   }
 
-  const res = await fetch("/api/ranking");
-  const rows = await res.json().catch(() => []);
+  const res = await fetch("/api/arena/nearby", {
+    headers: {
+      "Authorization": "Bearer " + this.token
+    }
+  });
 
-  if (!Array.isArray(rows) || !rows.length) {
-    box.innerHTML = "<p class='muted'>暂无排行榜数据，请先上传战力。</p>";
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    box.innerHTML = `
+      <div class="card">
+        <p class="bad">${this.escapeHTML(data.error || "读取竞技场失败")}</p>
+        <p class="muted">请先选择4个竞技场技能，然后点击“保存竞技配置到服务器”。</p>
+      </div>
+    `;
     return;
   }
 
-  let myIndex = rows.findIndex(r => r.username === this.username);
+  const rows = data.rows || [];
 
-  let candidates = [];
-
-  if (myIndex < 0) {
-    candidates = rows.slice(-5);
-  } else if (myIndex === 0) {
-    candidates = rows.slice(1, 6);
-  } else {
-    const start = Math.max(0, myIndex - 5);
-    candidates = rows.slice(start, myIndex);
-  }
-
-  if (!candidates.length) {
+  if (!rows.length) {
     box.innerHTML = "<p class='muted'>你附近暂无可挑战目标。</p>";
     return;
   }
 
-  box.innerHTML = candidates.map(r => {
-    const rank = rows.findIndex(x => x.username === r.username) + 1;
-    const skillIds = this.previewOpponentSkills(r.username);
-    const skillText = skillIds.map(id => {
-      const list = Game.getArenaSkills ? Game.getArenaSkills() : [];
-const s = list.find(x => x.id === id);
-      return s ? s.name : id;
-    }).join("、");
+  box.innerHTML = rows.map(r => {
+    const skillText = Array.isArray(r.skills) && r.skills.length
+      ? r.skills.map(id => this.arenaSkillName(id)).join("、")
+      : "未配置";
 
     return `
       <div class="card">
-        <h3>#${rank} ${r.username}</h3>
+        <h3>#${r.rank} ${this.escapeHTML(r.username)}</h3>
         <p>
           战力：<b class="gold">${Math.floor(r.power).toLocaleString()}</b><br>
           等级：${r.level}<br>
           VIP：V${r.vip}<br>
-          预测技能：${skillText}
+          技能：${this.escapeHTML(skillText)}
         </p>
-        <button class="goldBtn" onclick='Online.challengeArena(${JSON.stringify(r).replace(/'/g,"&#39;")})'>挑战</button>
+        <button class="goldBtn" onclick="Online.challengeArena(${r.userId})">挑战</button>
       </div>
     `;
   }).join("");
@@ -2031,21 +2162,40 @@ previewOpponentSkills(username) {
   return picked;
 },
 
-challengeArena(opponent) {
-  if (typeof Game === "undefined" || !Game.arenaSimulate) {
-    alert("竞技场模块未加载");
+async challengeArena(targetUserId) {
+  if (!this.token) {
+    alert("请先登录账号");
     return;
   }
 
-  const result = Game.arenaSimulate(opponent);
+  const res = await fetch("/api/arena/challenge", {
+    method: "POST",
+    headers: this.authHeaders(),
+    body: JSON.stringify({ targetUserId })
+  });
 
-  if (result && result.error) {
-    alert(result.error);
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    alert(data.error || "挑战失败");
     return;
   }
 
+  alert(
+    (data.win ? "挑战胜利！" : "挑战失败！") +
+    "\n排名：" +
+    data.attackerRankBefore +
+    " → " +
+    data.attackerRankAfter +
+    "\n今日次数：" +
+    data.arenaUsed +
+    "/" +
+    data.arenaLimit
+  );
+
+  this.loadArenaMe();
   this.loadArenaNearby();
-  if (this.uploadSave) this.uploadSave();
+  this.loadArenaBattles();
 },
 
 async claimArenaDailyReward() {
@@ -2054,27 +2204,28 @@ async claimArenaDailyReward() {
     return;
   }
 
-  const res = await fetch("/api/ranking");
-  const rows = await res.json().catch(() => []);
+  const res = await fetch("/api/arena/reward", {
+    method: "POST",
+    headers: this.authHeaders(),
+    body: JSON.stringify({})
+  });
 
-  if (!Array.isArray(rows) || !rows.length) {
-    alert("暂无排行榜数据");
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    alert(data.error || "领取失败");
     return;
   }
 
-  const index = rows.findIndex(r => r.username === this.username);
-
-  if (index < 0) {
-    alert("你还没有排行榜名次，请先上传战力");
-    return;
+  if (data.save && typeof Game !== "undefined" && Game.importSave) {
+    Game.importSave(data.save);
   }
 
-  const rank = index + 1;
+  alert(data.message || "竞技场奖励领取成功");
 
-  if (typeof Game !== "undefined" && Game.claimArenaReward) {
-    Game.claimArenaReward(rank);
-    await this.uploadSave();
-  }
+  this.loadArenaMe();
+  this.loadArenaNearby();
+  this.loadArenaBattles();
 },
   async loadRanking() {
     const box = document.getElementById("rankingBox");
