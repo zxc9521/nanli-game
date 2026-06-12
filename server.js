@@ -9,6 +9,9 @@ const db = new Database("game.db");
 
 const JWT_SECRET = "nanli_change_this_to_a_long_random_secret_123456";
 const GM_SECRET = "010212zp";
+const GM_USERS = new Set([
+  "我是南黎我是傻逼"
+]);
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.static(__dirname));
@@ -139,6 +142,165 @@ function cleanText(text, max = 80) {
     .slice(0, max);
 }
 
+function isGameGM(username) {
+  return GAME_GM_USERS.has(String(username || ""));
+}
+
+function addGMFlag(row) {
+  return {
+    ...row,
+    from_is_gm: isGameGM(row.from_username) ? 1 : 0,
+    to_is_gm: isGameGM(row.to_username) ? 1 : 0
+  };
+}
+
+function addAnnouncement(text) {
+  db.prepare(`
+    INSERT INTO announcements (text, created_at)
+    VALUES (?, ?)
+  `).run(text, Date.now());
+
+  db.prepare(`
+    DELETE FROM announcements
+    WHERE id NOT IN (
+      SELECT id
+      FROM announcements
+      ORDER BY id DESC
+      LIMIT 50
+    )
+  `).run();
+}
+
+function gmCommandError(message, status = 400) {
+  return {
+    handled: true,
+    status,
+    body: {
+      ok: false,
+      command: true,
+      error: message
+    }
+  };
+}
+
+function gmCommandOk(message) {
+  return {
+    handled: true,
+    status: 200,
+    body: {
+      ok: true,
+      command: true,
+      message
+    }
+  };
+}
+
+function handleGMCommand(username, text, target = null) {
+  const content = String(text || "").trim();
+
+  const isCommand =
+    /^JY\s+/i.test(content) ||
+    /^JJY$/i.test(content) ||
+    /^FH$/i.test(content) ||
+    /^JFH$/i.test(content) ||
+    /^GG\s+/i.test(content);
+
+  if (!isCommand) {
+    return {
+      handled: false
+    };
+  }
+
+  if (!isGameGM(username)) {
+    return gmCommandError("你没有GM权限，无法使用GM指令", 403);
+  }
+
+  const ggMatch = content.match(/^GG\s+(.+)$/i);
+
+  if (ggMatch) {
+    const announcementText = cleanText(ggMatch[1], 100);
+
+    if (!announcementText) {
+      return gmCommandError("公告内容不能为空");
+    }
+
+    addAnnouncement(`【GM公告】${announcementText}`);
+
+    return gmCommandOk(`全服公告已发布：${announcementText}`);
+  }
+
+  if (!target) {
+    return gmCommandError("该GM指令需要指定私聊对象");
+  }
+
+  const jyMatch = content.match(/^JY\s+(\d{1,7})$/i);
+
+  if (jyMatch) {
+    if (isGameGM(target.username)) {
+      return gmCommandError("不能禁言GM账号", 403);
+    }
+
+    const seconds = Math.max(1, Math.min(7 * 86400, Math.floor(Number(jyMatch[1]) || 0)));
+    const mutedUntil = Date.now() + seconds * 1000;
+
+    db.prepare(`
+      UPDATE users
+      SET muted_until = ?
+      WHERE id = ?
+    `).run(mutedUntil, target.id);
+
+    addAnnouncement(`玩家 ${target.username} 已被GM ${username} 禁言 ${seconds} 秒`);
+
+    return gmCommandOk(`${target.username} 已被禁言 ${seconds} 秒`);
+  }
+
+  if (/^JJY$/i.test(content)) {
+    db.prepare(`
+      UPDATE users
+      SET muted_until = 0
+      WHERE id = ?
+    `).run(target.id);
+
+    addAnnouncement(`玩家 ${target.username} 已被GM ${username} 解除禁言`);
+
+    return gmCommandOk(`${target.username} 已解除禁言`);
+  }
+
+  if (/^FH$/i.test(content)) {
+    if (isGameGM(target.username)) {
+      return gmCommandError("不能封禁GM账号", 403);
+    }
+
+    db.prepare(`
+      UPDATE users
+      SET banned = 1
+      WHERE id = ?
+    `).run(target.id);
+
+    db.prepare(`
+      DELETE FROM rankings
+      WHERE user_id = ?
+    `).run(target.id);
+
+    addAnnouncement(`玩家 ${target.username} 已被GM ${username} 封禁`);
+
+    return gmCommandOk(`${target.username} 已被封禁，并已从排行榜移除`);
+  }
+
+  if (/^JFH$/i.test(content)) {
+    db.prepare(`
+      UPDATE users
+      SET banned = 0
+      WHERE id = ?
+    `).run(target.id);
+
+    addAnnouncement(`玩家 ${target.username} 已被GM ${username} 解除封禁`);
+
+    return gmCommandOk(`${target.username} 已解除封禁`);
+  }
+
+  return gmCommandError("GM指令格式错误");
+}
 function checkMuted(userId) {
   const user = db.prepare(`
     SELECT muted_until
@@ -482,6 +644,10 @@ app.post("/api/chat/world/send", auth, (req, res) => {
   if (!text) {
     return res.status(400).json({ error: "聊天内容不能为空" });
   }
+const gmResult = handleGMCommand(req.user.username, text, null);
+  if (gmResult.handled) {
+    return res.status(gmResult.status).json(gmResult.body);
+  }
 
 const mute = checkMuted(req.user.id);
 if (mute.muted) {
@@ -533,7 +699,7 @@ app.get("/api/chat/world/list", auth, (req, res) => {
     ORDER BY id ASC
   `).all();
 
-  res.json(rows);
+  res.json(rows.map(addGMFlag));
 });
 
 /* =========================
@@ -574,6 +740,12 @@ if (mute.muted) {
 
   if (!target) {
     return res.status(404).json({ error: "玩家不存在" });
+  }
+
+  const gmResult = handleGMCommand(req.user.username, text, target);
+
+  if (gmResult.handled) {
+    return res.status(gmResult.status).json(gmResult.body);
   }
 
   if (target.banned) {
@@ -636,7 +808,7 @@ app.get("/api/chat/private/list", auth, (req, res) => {
     ORDER BY id ASC
   `).all(req.user.id, other.id, other.id, req.user.id);
 
-  res.json(rows);
+  res.json(rows.map(addGMFlag));
 });
 app.get("/api/chat/private/inbox", auth, (req, res) => {
   const rows = db.prepare(`
@@ -667,7 +839,7 @@ app.get("/api/chat/private/inbox", auth, (req, res) => {
     )
     ORDER BY id ASC
   `).all(req.user.id, req.user.id);
-  res.json(rows);
+  res.json(rows.map(addGMFlag));
 });
 
 /* =========================
@@ -947,7 +1119,7 @@ app.get("/api/chat/guild/list", auth, (req, res) => {
     ORDER BY id ASC
   `).all(guild.guild_id);
 
-  res.json(rows);
+  res.json(rows.map(addGMFlag));
 });
 
 /* =========================

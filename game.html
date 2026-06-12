@@ -876,6 +876,12 @@ escapeHTML(text) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 },
+nameHTML(username, isGM) {
+  const safe = this.escapeHTML(username);
+  return Number(isGM)
+    ? `<span class="gold">[GM]</span><b>${safe}</b>`
+    : `<b>${safe}</b>`;
+},
 selectPrivateTarget(username) {
   const input = document.getElementById("privateTarget");
   if (input) input.value = username;
@@ -896,9 +902,13 @@ async sendWorldChat() {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) return this.chatStatus(data.error || "发送失败");
 
-  input.value = "";
-  this.chatStatus("世界消息已发送");
+input.value = "";
+this.chatStatus(data.message || "世界消息已发送");
+if (data.command) {
+  this.loadAnnouncements();
+} else {
   this.loadWorldChat();
+}
 },
 
 async loadWorldChat() {
@@ -913,7 +923,14 @@ async loadWorldChat() {
   });
 
   const rows = await res.json().catch(() => []);
-  const html = rows.map(r => `<p><span class="gold">[世界]</span> ${this.timeText(r.created_at)} <b>${r.from_username}</b>：${r.text}</p>`).join("");
+  const html = rows.map(r => `
+  <p>
+    <span class="gold">[世界]</span>
+    ${this.timeText(r.created_at)}
+    ${this.nameHTML(r.from_username, r.from_is_gm)}：
+    ${this.escapeHTML(r.text)}
+  </p>
+`).join("");
 if(box.dataset.lastHtml!==html){
  box.innerHTML=html;
  box.dataset.lastHtml=html;
@@ -943,8 +960,14 @@ async sendPrivateChat() {
   if (!res.ok) return this.chatStatus(data.error || "发送失败");
 
 input.value = "";
-this.chatStatus("私聊已发送");
-this.loadPrivateInbox();
+this.chatStatus(data.message || "私聊已发送");
+if (data.command) {
+  this.loadAnnouncements();
+} else if (this.loadPrivateInbox) {
+  this.loadPrivateInbox();
+} else {
+  this.loadPrivateChat();
+}
 },
 
 async loadPrivateInbox() {
@@ -972,14 +995,21 @@ async loadPrivateInbox() {
   }
 
   const html = rows.map(r => {
-    const isMe = r.from_username === this.username;
-    const other = isMe ? r.to_username : r.from_username;
-    const otherSafe = this.escapeHTML(other);
-    const text = this.escapeHTML(r.text);
+  const isMe = r.from_username === this.username;
+  const other = isMe ? r.to_username : r.from_username;
+  const otherIsGM = isMe ? r.to_is_gm : r.from_is_gm;
+  const otherSafe = this.escapeHTML(other);
+  const text = this.escapeHTML(r.text);
 
-    const direction = isMe
-      ? `<span class="good">我</span> → <button class="ghost" style="width:auto;padding:2px 7px;margin:0" onclick="Online.selectPrivateTarget('${otherSafe}')">${otherSafe}</button>`
-      : `<button class="ghost" style="width:auto;padding:2px 7px;margin:0" onclick="Online.selectPrivateTarget('${otherSafe}')">${otherSafe}</button> → <span class="gold">我</span>`;
+  const otherLabel = Number(otherIsGM)
+    ? `[GM]${otherSafe}`
+    : otherSafe;
+
+  const otherButton = `<button class="ghost" style="width:auto;padding:2px 7px;margin:0" onclick="Online.selectPrivateTarget('${otherSafe}')">${otherLabel}</button>`;
+
+  const direction = isMe
+    ? `<span class="good">我</span> → ${otherButton}`
+    : `${otherButton} → <span class="gold">我</span>`;
 
     return `
       <p>
@@ -1021,15 +1051,15 @@ async loadPrivateChat() {
     return;
   }
   const html = rows.map(r => `
-    <p>
-      <span class="gold">[私聊]</span>
-      ${this.timeText(r.created_at)}
-      <b>${this.escapeHTML(r.from_username)}</b>
-      →
-      <b>${this.escapeHTML(r.to_username)}</b>：
-      ${this.escapeHTML(r.text)}
-    </p>
-  `).join("");
+  <p>
+    <span class="gold">[私聊]</span>
+    ${this.timeText(r.created_at)}
+    ${this.nameHTML(r.from_username, r.from_is_gm)}
+    →
+    ${this.nameHTML(r.to_username, r.to_is_gm)}：
+    ${this.escapeHTML(r.text)}
+  </p>
+`).join("");
   if (box.dataset.lastHtml !== html) {
     box.innerHTML = html;
     box.dataset.lastHtml = html;
@@ -1073,7 +1103,14 @@ async loadGuildChat() {
     return;
   }
 
-const html = data.map(r => `<p><span class="gold">[帮会]</span> ${this.timeText(r.created_at)} <b>${r.from_username}</b>：${r.text}</p>`).join("");
+const html = data.map(r => `
+  <p>
+    <span class="gold">[帮会]</span>
+    ${this.timeText(r.created_at)}
+    ${this.nameHTML(r.from_username, r.from_is_gm)}：
+    ${this.escapeHTML(r.text)}
+  </p>
+`).join("");
 if(box.dataset.lastHtml!==html){
  box.innerHTML=html;
  box.dataset.lastHtml=html;
