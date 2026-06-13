@@ -661,7 +661,14 @@ const equipDungeons=[
 ["试炼兵器库",3000,.34,28,5],["秘银装备室",16000,.42,31,8],["星陨宝甲窟",60000,.52,34,11],["炫彩神兵冢",180000,.64,37,14],["虚空熔铸厂",520000,.76,40,17],["归墟万械库",1400000,.9,43,20],["星河神装殿",3600000,1.06,46,23],["太初器灵界",8200000,1.22,49,26]
 ].map(x=>({name:x[0],req:x[1],eq:x[2],kpm:x[3],tier:x[4]}));
 const expDungeons=[
-["启蒙经验阵",2500,135,29,5],["灵潮经验阵",15000,620,32,8],["天书经验阵",56000,2100,35,11],["太初经验阵",170000,7600,38,14],["星火悟道场",500000,19000,41,17],["归墟问心阵",1300000,52000,44,20],["星河顿悟域",3400000,135000,47,23],["太上无量殿",7800000,330000,50,26]
+["启蒙经验阵",500,300,32,5],
+["灵潮经验阵",2500,1200,35,8],
+["天书经验阵",8000,4200,38,11],
+["太初经验阵",22000,13000,41,14],
+["星火悟道场",60000,36000,44,17],
+["归墟问心阵",150000,90000,47,20],
+["星河顿悟域",360000,220000,50,23],
+["太上无量殿",800000,520000,54,26]
 ].map(x=>({name:x[0],req:x[1],exp:x[2],kpm:x[3],tier:x[4]}));
 const guildDungeons=[
  ["帮会矿洞",100000,900,120,.22,34,12],
@@ -816,6 +823,7 @@ const arenaSkills=[
 ];
 const funnyEvents=["南黎挂机睡着了，怪物排队把经验放在脚边。","背包太满开始抗议，南黎冷静地打开整理。","VIP副本掉出万能碎片，门口保安说这是新福利。","风油大喊别打了，但副本次数还有。","丁文霞路过战场，顺手把怪物写进日志。","铁匠铺宣布：元宝别来，强化只认锻造石。"];
 const YUANBAO_GAIN_RATE=0.12;
+const EXP_GAIN_RATE=9.8;
 
 let S=load(),lastRender=0;
 
@@ -2743,7 +2751,7 @@ function grantKills(kills,reason="挂机"){
   const raw=kills*map.eq*(1+b.gear);
   equipCount=Math.floor(raw)+(Math.random()<raw%1?1:0);
  }
-gainExp(Math.floor(exp));yb=Math.floor(yb*YUANBAO_GAIN_RATE);S.yuanbao+=yb;S.stats.kills+=kills;grantMaterialDrops(kills,map);grantBeastRealmDrops(kills,map);
+gainExp(Math.floor(exp*EXP_GAIN_RATE));yb=Math.floor(yb*YUANBAO_GAIN_RATE);S.yuanbao+=yb;S.stats.kills+=kills;grantMaterialDrops(kills,map);grantBeastRealmDrops(kills,map);
  let dropBreakCount=0,dropBreakValue=0;
 for(let i=0;i<Math.min(equipCount,110);i++){
  const item=newEquip(rollSlot(),map.tier,rollQuality(map.tier,"drop"));
