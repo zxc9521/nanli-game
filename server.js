@@ -3191,6 +3191,9 @@ app.get("/", (req, res) => {
 app.get("/game.html", (req, res) => {
   res.sendFile(path.join(__dirname, "game.html"));
 });
+app.get("/gm.html", (req, res) => {
+  res.sendFile(path.join(__dirname, "gm.html"));
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("服务器已启动，端口：" + PORT);
