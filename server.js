@@ -1127,11 +1127,35 @@ app.post("/api/save", auth, (req, res) => {
 
   ensurePlayerResources(req.user.id, save);
 
+    ensurePlayerResources(req.user.id, save);
+
+  db.prepare(`
+    UPDATE player_resources
+    SET yuanbao = ?,
+        copper = ?,
+        forgeStones = ?,
+        vipExp = ?,
+        guildToken = ?,
+        fateRerollStones = ?,
+        beastCoins = ?,
+        updated_at = ?
+    WHERE user_id = ?
+  `).run(
+    num(save.yuanbao),
+    num(save.copper),
+    num(save.forgeStones),
+    num(save.vipExp),
+    num(save.guildToken),
+    num(save.fateRerollStones),
+    num(save.beastCoins),
+    Date.now(),
+    req.user.id
+  );
+
   const resources = getPlayerResources(req.user.id, save);
   applyResourcesToSave(save, resources);
 
   const saveTextCheck = JSON.stringify(save);
-
   if (saveTextCheck.length > 8 * 1024 * 1024) {
     return res.status(400).json({ error: "存档太大，请先清理背包" });
   }
