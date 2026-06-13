@@ -1069,12 +1069,11 @@ app.get("/api/save", auth, (req, res) => {
     WHERE id = ?
   `).get(req.user.id);
 
-  if (!user || !user.save_data) {
-    const resources = ensurePlayerResources(req.user.id, {});
-    const save = applyResourcesToSave({}, resources);
+    if (!user || !user.save_data) {
+    ensurePlayerResources(req.user.id, {});
 
     return res.json({
-      save,
+      save: null,
       updatedAt: 0
     });
   }
@@ -1091,12 +1090,11 @@ app.get("/api/save", auth, (req, res) => {
       save,
       updatedAt: user.save_updated_at || 0
     });
-  } catch {
-    const resources = ensurePlayerResources(req.user.id, {});
-    const save = applyResourcesToSave({}, resources);
+    } catch {
+    ensurePlayerResources(req.user.id, {});
 
     res.json({
-      save,
+      save: null,
       updatedAt: 0
     });
   }
@@ -1125,9 +1123,17 @@ app.post("/api/save", auth, (req, res) => {
     });
   }
 
-  ensurePlayerResources(req.user.id, save);
+  const oldResources = ensurePlayerResources(req.user.id, save);
 
-    ensurePlayerResources(req.user.id, save);
+  const mergedResources = {
+    yuanbao: Math.max(num(oldResources.yuanbao), num(save.yuanbao)),
+    copper: Math.max(num(oldResources.copper), num(save.copper)),
+    forgeStones: Math.max(num(oldResources.forgeStones), num(save.forgeStones)),
+    vipExp: Math.max(num(oldResources.vipExp), num(save.vipExp)),
+    guildToken: Math.max(num(oldResources.guildToken), num(save.guildToken)),
+    fateRerollStones: Math.max(num(oldResources.fateRerollStones), num(save.fateRerollStones)),
+    beastCoins: Math.max(num(oldResources.beastCoins), num(save.beastCoins))
+  };
 
   db.prepare(`
     UPDATE player_resources
@@ -1141,21 +1147,21 @@ app.post("/api/save", auth, (req, res) => {
         updated_at = ?
     WHERE user_id = ?
   `).run(
-    num(save.yuanbao),
-    num(save.copper),
-    num(save.forgeStones),
-    num(save.vipExp),
-    num(save.guildToken),
-    num(save.fateRerollStones),
-    num(save.beastCoins),
+    mergedResources.yuanbao,
+    mergedResources.copper,
+    mergedResources.forgeStones,
+    mergedResources.vipExp,
+    mergedResources.guildToken,
+    mergedResources.fateRerollStones,
+    mergedResources.beastCoins,
     Date.now(),
     req.user.id
   );
 
-  const resources = getPlayerResources(req.user.id, save);
-  applyResourcesToSave(save, resources);
+  applyResourcesToSave(save, mergedResources);
 
   const saveTextCheck = JSON.stringify(save);
+
   if (saveTextCheck.length > 8 * 1024 * 1024) {
     return res.status(400).json({ error: "存档太大，请先清理背包" });
   }
