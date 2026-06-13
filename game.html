@@ -4611,7 +4611,9 @@ async uploadSave() {
     return;
   }
 
-  if (data.updatedAt && typeof Game !== "undefined" && Game.setCloudUpdatedAt) {
+  if (data.save && typeof Game !== "undefined" && Game.importSave) {
+    Game.importSave(data.save);
+  } else if (data.updatedAt && typeof Game !== "undefined" && Game.setCloudUpdatedAt) {
     Game.setCloudUpdatedAt(data.updatedAt);
   }
 

@@ -5,7 +5,7 @@ const jwt = require("jsonwebtoken");
 const path = require("path");
 
 const app = express();
-const db = new Database("game.db");
+const db = new Database(path.join(__dirname, "game.db"));
 
 const JWT_SECRET = "nanli_change_this_to_a_long_random_secret_123456";
 const GM_SECRET = "010212zp";
@@ -148,6 +148,18 @@ CREATE TABLE IF NOT EXISTS auction_listings (
   expire_at INTEGER NOT NULL DEFAULT 0,
   sold_at INTEGER,
   cancelled_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS player_resources (
+  user_id INTEGER PRIMARY KEY,
+  yuanbao INTEGER NOT NULL DEFAULT 0,
+  copper INTEGER NOT NULL DEFAULT 0,
+  forgeStones INTEGER NOT NULL DEFAULT 0,
+  vipExp INTEGER NOT NULL DEFAULT 0,
+  guildToken INTEGER NOT NULL DEFAULT 0,
+  fateRerollStones INTEGER NOT NULL DEFAULT 0,
+  beastCoins INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id)
 );
 CREATE TABLE IF NOT EXISTS beast_arena_players (
   user_id INTEGER PRIMARY KEY,
@@ -555,14 +567,173 @@ function readUserSave(username) {
 
 function writeUserSave(userId, save) {
   const now = Date.now();
+
+  save = save && typeof save === "object" ? save : {};
+
+  const resources = ensurePlayerResources(userId, save);
+  applyResourcesToSave(save, resources);
+
   save.last = now;
   save.cloudUpdatedAt = now;
+
   db.prepare(`
     UPDATE users
     SET save_data = ?, save_updated_at = ?
     WHERE id = ?
   `).run(JSON.stringify(save), now, userId);
+
   return now;
+}
+const RESOURCE_KEYS = [
+  "yuanbao",
+  "copper",
+  "forgeStones",
+  "vipExp",
+  "guildToken",
+  "fateRerollStones",
+  "beastCoins"
+];
+
+function num(v) {
+  return Math.max(0, Math.floor(Number(v) || 0));
+}
+
+function defaultResourcesFromSave(save = {}) {
+  return {
+    yuanbao: num(save.yuanbao),
+    copper: num(save.copper),
+    forgeStones: num(save.forgeStones),
+    vipExp: num(save.vipExp),
+    guildToken: num(save.guildToken),
+    fateRerollStones: num(save.fateRerollStones),
+    beastCoins: num(save.beastCoins),
+  };
+}
+
+function ensurePlayerResources(userId, saveForInit = {}) {
+  let row = db.prepare(`
+    SELECT *
+    FROM player_resources
+    WHERE user_id = ?
+  `).get(userId);
+
+  if (row) return row;
+
+  const r = defaultResourcesFromSave(saveForInit);
+
+  db.prepare(`
+    INSERT INTO player_resources (
+      user_id,
+      yuanbao,
+      copper,
+      forgeStones,
+      vipExp,
+      guildToken,
+      fateRerollStones,
+      beastCoins,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    userId,
+    r.yuanbao,
+    r.copper,
+    r.forgeStones,
+    r.vipExp,
+    r.guildToken,
+    r.fateRerollStones,
+    r.beastCoins,
+    Date.now()
+  );
+
+  row = db.prepare(`
+    SELECT *
+    FROM player_resources
+    WHERE user_id = ?
+  `).get(userId);
+
+  return row;
+}
+
+function getPlayerResources(userId, saveForInit = {}) {
+  return ensurePlayerResources(userId, saveForInit);
+}
+
+function applyResourcesToSave(save, resources) {
+  save = save && typeof save === "object" ? save : {};
+
+  save.yuanbao = num(resources.yuanbao);
+  save.copper = num(resources.copper);
+  save.forgeStones = num(resources.forgeStones);
+  save.vipExp = num(resources.vipExp);
+  save.guildToken = num(resources.guildToken);
+  save.fateRerollStones = num(resources.fateRerollStones);
+  save.beastCoins = num(resources.beastCoins);
+
+  return save;
+}
+
+function addPlayerResource(userId, key, amount) {
+  if (!RESOURCE_KEYS.includes(key)) {
+    throw new Error("资源类型错误：" + key);
+  }
+
+  amount = Math.floor(Number(amount) || 0);
+
+  const row = ensurePlayerResources(userId);
+
+  const next = Math.max(0, num(row[key]) + amount);
+
+  db.prepare(`
+    UPDATE player_resources
+    SET ${key} = ?,
+        updated_at = ?
+    WHERE user_id = ?
+  `).run(next, Date.now(), userId);
+
+  return next;
+}
+
+function setPlayerResource(userId, key, value) {
+  if (!RESOURCE_KEYS.includes(key)) {
+    throw new Error("资源类型错误：" + key);
+  }
+
+  value = num(value);
+
+  ensurePlayerResources(userId);
+
+  db.prepare(`
+    UPDATE player_resources
+    SET ${key} = ?,
+        updated_at = ?
+    WHERE user_id = ?
+  `).run(value, Date.now(), userId);
+
+  return value;
+}
+
+function spendPlayerResource(userId, key, amount) {
+  if (!RESOURCE_KEYS.includes(key)) {
+    throw new Error("资源类型错误：" + key);
+  }
+
+  amount = Math.max(1, Math.floor(Number(amount) || 0));
+
+  const row = ensurePlayerResources(userId);
+
+  if (num(row[key]) < amount) {
+    return false;
+  }
+
+  db.prepare(`
+    UPDATE player_resources
+    SET ${key} = ${key} - ?,
+        updated_at = ?
+    WHERE user_id = ?
+  `).run(amount, Date.now(), userId);
+
+  return true;
 }
 
 function getMyGuild(userId) {
@@ -899,14 +1070,21 @@ app.get("/api/save", auth, (req, res) => {
   `).get(req.user.id);
 
   if (!user || !user.save_data) {
+    const resources = ensurePlayerResources(req.user.id, {});
+    const save = applyResourcesToSave({}, resources);
+
     return res.json({
-      save: null,
+      save,
       updatedAt: 0
     });
   }
 
   try {
     const save = JSON.parse(user.save_data);
+
+    const resources = ensurePlayerResources(req.user.id, save);
+    applyResourcesToSave(save, resources);
+
     save.cloudUpdatedAt = user.save_updated_at || 0;
 
     res.json({
@@ -914,13 +1092,15 @@ app.get("/api/save", auth, (req, res) => {
       updatedAt: user.save_updated_at || 0
     });
   } catch {
+    const resources = ensurePlayerResources(req.user.id, {});
+    const save = applyResourcesToSave({}, resources);
+
     res.json({
-      save: null,
+      save,
       updatedAt: 0
     });
   }
 });
-
 app.post("/api/save", auth, (req, res) => {
   const save = req.body.save;
 
@@ -945,6 +1125,11 @@ app.post("/api/save", auth, (req, res) => {
     });
   }
 
+  ensurePlayerResources(req.user.id, save);
+
+  const resources = getPlayerResources(req.user.id, save);
+  applyResourcesToSave(save, resources);
+
   const saveTextCheck = JSON.stringify(save);
 
   if (saveTextCheck.length > 8 * 1024 * 1024) {
@@ -966,7 +1151,8 @@ app.post("/api/save", auth, (req, res) => {
 
   res.json({
     ok: true,
-    updatedAt: now
+    updatedAt: now,
+    save
   });
 });
 
@@ -1315,9 +1501,9 @@ app.post("/api/arena/reward", auth, (req, res) => {
   const { save } = result;
   const reward = arenaRewardByRank(me.rank);
 
-  save.yuanbao = Math.max(0, Math.floor(Number(save.yuanbao) || 0)) + reward.yb;
-  save.forgeStones = Math.max(0, Math.floor(Number(save.forgeStones) || 0)) + reward.forge;
-  save.fateRerollStones = Math.max(0, Math.floor(Number(save.fateRerollStones) || 0)) + reward.fate;
+  addPlayerResource(req.user.id, "yuanbao", reward.yb);
+addPlayerResource(req.user.id, "forgeStones", reward.forge);
+addPlayerResource(req.user.id, "fateRerollStones", reward.fate);
 
   save.universalShards = save.universalShards || {};
   save.universalShards.black = Math.max(0, Math.floor(Number(save.universalShards.black) || 0)) + reward.black;
@@ -1658,14 +1844,19 @@ app.post("/api/guild/create", auth, (req, res) => {
 
   const { user, save } = result;
 
-  save.guildToken = Math.max(0, Math.floor(Number(save.guildToken) || 0));
+  const resources = getPlayerResources(req.user.id, save);
 
-  if (save.guildToken < 1) {
-    return res.status(400).json({ error: "帮派令不足，无法创建帮会" });
-  }
+if (num(resources.guildToken) < 1) {
+  return res.status(400).json({ error: "帮派令不足，无法创建帮会" });
+}
 
   const createGuildTx = db.transaction(() => {
-    save.guildToken -= 1;
+    db.prepare(`
+      UPDATE player_resources
+      SET guildToken = guildToken - 1,
+          updated_at = ?
+      WHERE user_id = ?
+    `).run(Date.now(), user.id);
 
     const info = db.prepare(`
       INSERT INTO guilds (name, leader_user_id, leader_username, created_at)
@@ -2315,7 +2506,7 @@ app.post("/api/beast-arena/challenge", auth, (req, res) => {
 
     const save = result.save;
 
-    save.beastCoins = Math.max(0, Math.floor(Number(save.beastCoins) || 0)) + reward;
+    addPlayerResource(req.user.id, "beastCoins", reward);
 
     writeUserSave(req.user.id, save);
 
@@ -2427,13 +2618,18 @@ app.post("/api/beast-arena/shop", auth, (req, res) => {
 
   const save = result.save;
 
-  save.beastCoins = Math.max(0, Math.floor(Number(save.beastCoins) || 0));
+  const resources = getPlayerResources(req.user.id, save);
 
-  if (save.beastCoins < cost) {
-    return res.status(400).json({ error: "斗兽币不足" });
-  }
+if (num(resources.beastCoins) < cost) {
+  return res.status(400).json({ error: "斗兽币不足" });
+}
 
-  save.beastCoins -= cost;
+db.prepare(`
+  UPDATE player_resources
+  SET beastCoins = beastCoins - ?,
+      updated_at = ?
+  WHERE user_id = ?
+`).run(cost, Date.now(), req.user.id);
 
   save.materials = save.materials || {};
   save.materials[type] = save.materials[type] || {};
@@ -2848,12 +3044,12 @@ app.post("/api/auction/buy", auth, (req, res) => {
   const buyerSave = buyerResult.save;
   const sellerSave = sellerResult.save;
 
-  buyerSave.yuanbao = Math.max(0, Math.floor(Number(buyerSave.yuanbao) || 0));
-  sellerSave.yuanbao = Math.max(0, Math.floor(Number(sellerSave.yuanbao) || 0));
+  const buyerRes = getPlayerResources(req.user.id, buyerSave);
+const sellerRes = getPlayerResources(listing.seller_user_id, sellerSave);
 
-  if (buyerSave.yuanbao < listing.price) {
-    return res.status(400).json({ error: "元宝不足" });
-  }
+if (num(buyerRes.yuanbao) < listing.price) {
+  return res.status(400).json({ error: "元宝不足" });
+}
 
   let item = null;
 
@@ -2867,14 +3063,24 @@ app.post("/api/auction/buy", auth, (req, res) => {
   const sellerGain = listing.price - tax;
 
   const tx = db.transaction(() => {
-    buyerSave.yuanbao -= listing.price;
+    db.prepare(`
+  UPDATE player_resources
+  SET yuanbao = yuanbao - ?,
+      updated_at = ?
+  WHERE user_id = ?
+`).run(listing.price, Date.now(), req.user.id);
 
-    addAuctionItemToSave(buyerSave, listing.item_type || "equip", item);
+db.prepare(`
+  UPDATE player_resources
+  SET yuanbao = yuanbao + ?,
+      updated_at = ?
+  WHERE user_id = ?
+`).run(sellerGain, Date.now(), listing.seller_user_id);
 
-    sellerSave.yuanbao += sellerGain;
+addAuctionItemToSave(buyerSave, listing.item_type || "equip", item);
 
-    writeUserSave(req.user.id, buyerSave);
-    writeUserSave(listing.seller_user_id, sellerSave);
+writeUserSave(req.user.id, buyerSave);
+writeUserSave(listing.seller_user_id, sellerSave);
 
     db.prepare(`
       UPDATE auction_listings
@@ -2911,7 +3117,6 @@ app.post("/api/gm/grant", gmAuth, (req, res) => {
   const username = String(req.body.username || "").trim();
   const type = String(req.body.type || "").trim();
   const amount = Math.max(1, Math.floor(Number(req.body.amount) || 0));
-  const shardQuality = String(req.body.shardQuality || "").trim();
 
   if (!username) {
     return res.status(400).json({ error: "请输入玩家用户名" });
@@ -2929,58 +3134,368 @@ app.post("/api/gm/grant", gmAuth, (req, res) => {
 
   const { user, save } = result;
 
-  if (type === "yuanbao") {
-    save.yuanbao = Math.max(0, Math.floor(Number(save.yuanbao) || 0)) + amount;
-  } else if (type === "forgeStones") {
-    save.forgeStones = Math.max(0, Math.floor(Number(save.forgeStones) || 0)) + amount;
-  } else if (type === "vipExp") {
-    save.vipExp = Math.max(0, Math.floor(Number(save.vipExp) || 0)) + amount;
-  } else if (type === "doubleExpPills") {
-    save.doubleExpPills = Math.max(0, Math.floor(Number(save.doubleExpPills) || 0)) + amount;
-  } else if (type === "tripleExpPills") {
-    save.tripleExpPills = Math.max(0, Math.floor(Number(save.tripleExpPills) || 0)) + amount;
-  } else if (type === "fiveExpPills") {
-    save.fiveExpPills = Math.max(0, Math.floor(Number(save.fiveExpPills) || 0)) + amount;
-  } else if (type === "tenExpPills") {
-    save.tenExpPills = Math.max(0, Math.floor(Number(save.tenExpPills) || 0)) + amount;
-  } else if (type === "vipTrialLow") {
-    save.vipTrialLow = Math.max(0, Math.floor(Number(save.vipTrialLow) || 0)) + amount;
-  } else if (type === "guildToken") {
-    save.guildToken = Math.max(0, Math.floor(Number(save.guildToken) || 0)) + amount;
-  } else if (type === "universalShard") {
-    const allowed = [
-      "normal",
-      "good",
-      "rare",
-      "epic",
-      "legend",
-      "myth",
-      "supreme",
-      "chroma",
-      "god",
-      "black",
-      "zenlegend"
-    ];
-
-    if (!allowed.includes(shardQuality)) {
-      return res.status(400).json({ error: "万能碎片品质错误" });
-    }
-
-    save.universalShards = save.universalShards || {};
-    save.universalShards[shardQuality] =
-      Math.max(0, Math.floor(Number(save.universalShards[shardQuality]) || 0)) + amount;
-  } else {
-    return res.status(400).json({ error: "不支持的发放类型" });
+  function makeId(prefix = "gm") {
+    return prefix + "_" + Date.now() + "_" + Math.random().toString(16).slice(2);
   }
 
-  writeUserSave(user.id, save);
+  function clampInt(value, min, max, fallback = min) {
+    const n = Math.floor(Number(value));
+    if (!Number.isFinite(n)) return fallback;
+    return Math.max(min, Math.min(max, n));
+  }
 
-  res.json({
-    ok: true,
-    message: `已向 ${user.username} 发放成功`
-  });
+  function addToObjectNumber(obj, key, n) {
+    obj[key] = Math.max(0, Math.floor(Number(obj[key]) || 0)) + n;
+  }
+
+  function addMaterial(materialType, quality, n) {
+    if (!["ore", "herb", "hide"].includes(materialType)) {
+      return { error: "材料类型错误" };
+    }
+
+    save.materials = save.materials || {};
+    save.materials.ore = save.materials.ore || {};
+    save.materials.herb = save.materials.herb || {};
+    save.materials.hide = save.materials.hide || {};
+
+    addToObjectNumber(save.materials[materialType], quality, n);
+
+    return { ok: true };
+  }
+
+  function pillDefaultValue(stage, grade, stat) {
+    const stageList = ["fan", "ling", "tian", "di", "xian", "shen"];
+    const gradeMult = {
+      low: 0.7,
+      mid: 1,
+      high: 1.45
+    };
+
+    const stageIndex = Math.max(0, stageList.indexOf(stage));
+    const base = stageIndex + 1;
+    const mult = gradeMult[grade] || 1;
+
+    if (stat === "power") return Math.max(1, Math.floor(base * 3 * mult));
+    if (stat === "exp") return Number((base * 0.001 * mult).toFixed(4));
+    if (stat === "yb") return Number((base * 0.001 * mult).toFixed(4));
+    if (stat === "gear") return Number((base * 0.0006 * mult).toFixed(4));
+    if (stat === "kill") return Number((base * 0.0008 * mult).toFixed(4));
+
+    return 1;
+  }
+
+  function makePill() {
+    const stage = String(req.body.pillStage || "fan").trim();
+    const grade = String(req.body.pillGrade || "low").trim();
+    const stat = String(req.body.pillStat || "power").trim();
+    const customName = String(req.body.pillName || "").trim();
+    const customValue = req.body.pillValue;
+
+    const stageNames = {
+      fan: "凡阶",
+      ling: "灵阶",
+      tian: "天阶",
+      di: "地阶",
+      xian: "仙阶",
+      shen: "神阶"
+    };
+
+    const gradeNames = {
+      low: "下等",
+      mid: "中等",
+      high: "上等"
+    };
+
+    if (!stageNames[stage]) return { error: "丹药阶级错误" };
+    if (!gradeNames[grade]) return { error: "丹药品级错误" };
+
+    const allowedStats = ["power", "exp", "yb", "gear", "kill"];
+    if (!allowedStats.includes(stat)) return { error: "丹药属性错误" };
+
+    const value = customValue === "" || customValue === undefined || customValue === null
+      ? pillDefaultValue(stage, grade, stat)
+      : Number(customValue);
+
+    if (!Number.isFinite(value) || value < 0) {
+      return { error: "丹药效果值错误" };
+    }
+
+    return {
+      item: {
+        id: makeId("pill"),
+        stage,
+        grade,
+        stat,
+        value,
+        name: customName || `GM发放·${stageNames[stage]}${gradeNames[grade]}丹药`,
+        createdAt: Date.now()
+      }
+    };
+  }
+
+  function talismanDefaultValue(stage) {
+    const base = {
+      fan: 0.08,
+      ling: 0.14,
+      tian: 0.22,
+      di: 0.32,
+      xian: 0.45,
+      shen: 0.65
+    };
+
+    return base[stage] || 0.08;
+  }
+
+  function makeTalisman() {
+    const stage = String(req.body.talismanStage || "fan").trim();
+    const talismanType = String(req.body.talismanType || "power").trim();
+    const customName = String(req.body.talismanName || "").trim();
+    const customValue = req.body.talismanValue;
+    const durationMinuteInput = req.body.talismanDuration;
+
+    const stageNames = {
+      fan: "凡阶",
+      ling: "灵阶",
+      tian: "天阶",
+      di: "地阶",
+      xian: "仙阶",
+      shen: "神阶"
+    };
+
+    const typeNames = {
+      power: "战力符",
+      exp: "聚灵符",
+      yb: "聚宝符",
+      gear: "寻宝符",
+      kill: "疾杀符"
+    };
+
+    if (!stageNames[stage]) return { error: "符箓阶级错误" };
+    if (!typeNames[talismanType]) return { error: "符箓类型错误" };
+
+    const value = customValue === "" || customValue === undefined || customValue === null
+      ? talismanDefaultValue(stage)
+      : Number(customValue);
+
+    if (!Number.isFinite(value) || value < 0) {
+      return { error: "符箓加成值错误" };
+    }
+
+    const durationMinutes = durationMinuteInput === "" || durationMinuteInput === undefined || durationMinuteInput === null
+      ? 60
+      : Math.max(1, Math.floor(Number(durationMinuteInput) || 60));
+
+    return {
+      item: {
+        id: makeId("talisman"),
+        stage,
+        type: talismanType,
+        value,
+        duration: durationMinutes * 60 * 1000,
+        name: customName || `GM发放·${stageNames[stage]}${typeNames[talismanType]}`,
+        createdAt: Date.now()
+      }
+    };
+  }
+
+  function calcBeastStats(beast) {
+    const level = Math.max(1, Math.floor(Number(beast.level) || 1));
+    const q = Math.max(0, Math.floor(Number(beast.q) || 0));
+    const aptitude = Math.max(1, Math.floor(Number(beast.aptitude) || 1));
+    const affinityValue = Math.max(0, Math.min(100, Math.floor(Number(beast.affinity) || 0)));
+    const affinity = affinityValue >= 80 ? 1.2 : 0.6 + affinityValue / 80 * 0.6;
+    const evolve = 1 + Math.max(0, Math.floor(Number(beast.evolve) || 0)) * 0.08;
+
+    const qMult = 1 + q * 0.16;
+    const aptMult = 0.7 + aptitude / 100 * 0.8;
+    const beastType = beast.type || "support";
+
+    let hp = 100 + level * 18;
+    let atk = 18 + level * 4;
+    let def = 8 + level * 2.4;
+    let spd = 10 + level * 1.8;
+    let crit = 0.05 + q * 0.006 + aptitude * 0.0008;
+
+    if (beastType === "battle") {
+      hp *= 1.08;
+      atk *= 1.22;
+      def *= 1.05;
+      spd *= 1.05;
+      crit += 0.03;
+    } else {
+      hp *= 1.18;
+      atk *= 0.9;
+      def *= 1.16;
+      spd *= 1.08;
+    }
+
+    return {
+      hp: Math.floor(hp * qMult * aptMult * affinity * evolve),
+      atk: Math.floor(atk * qMult * aptMult * affinity * evolve),
+      def: Math.floor(def * qMult * aptMult * affinity * evolve),
+      spd: Math.floor(spd * qMult * aptMult * affinity * evolve),
+      crit: Math.min(0.45, crit * affinity)
+    };
+  }
+
+  function makeSpiritBeast(index) {
+    const beastName = String(req.body.beastName || "").trim() || "GM发放灵兽";
+    const q = clampInt(req.body.beastQuality, 0, 10, 0);
+    const beastType = String(req.body.beastType || "support").trim();
+    const level = clampInt(req.body.beastLevel, 1, 100, 1);
+    const aptitude = clampInt(req.body.beastAptitude, 1, 100, 80);
+    const affinity = clampInt(req.body.beastAffinity, 0, 100, 0);
+    const evolve = Math.max(0, Math.floor(Number(req.body.beastEvolve) || 0));
+    const appraised = !!req.body.beastAppraised;
+    const tradeBound = !!req.body.beastTradeBound;
+
+    if (!["battle", "support"].includes(beastType)) {
+      return { error: "灵兽类型错误" };
+    }
+
+    const beast = {
+      id: makeId("beast"),
+      name: amount > 1 ? `${beastName}${index + 1}` : beastName,
+      q,
+      type: beastType,
+      level,
+      exp: 0,
+      affinity,
+      evolve,
+      tradeBound,
+      appraised,
+      aptitude: appraised ? aptitude : 0,
+      beastStats: null,
+      activeSkill: String(req.body.beastActiveSkill || "").trim() || "GM神赐",
+      passiveSkill: String(req.body.beastPassiveSkill || "").trim() || "GM祝福",
+      caughtAt: Date.now()
+    };
+
+    if (appraised) {
+      beast.beastStats = calcBeastStats(beast);
+    }
+
+    return { item: beast };
+  }
+
+  try {
+    if (type === "yuanbao") {
+      addPlayerResource(user.id, "yuanbao", amount);
+    } else if (type === "copper") {
+      addPlayerResource(user.id, "copper", amount);
+    } else if (type === "forgeStones") {
+      addPlayerResource(user.id, "forgeStones", amount);
+    } else if (type === "vipExp") {
+      addPlayerResource(user.id, "vipExp", amount);
+    } else if (type === "guildToken") {
+      addPlayerResource(user.id, "guildToken", amount);
+    } else if (type === "fateRerollStones") {
+      addPlayerResource(user.id, "fateRerollStones", amount);
+    } else if (type === "beastCoins") {
+      addPlayerResource(user.id, "beastCoins", amount);
+    } else if (type === "doubleExpPills") {
+      save.doubleExpPills = Math.max(0, Math.floor(Number(save.doubleExpPills) || 0)) + amount;
+    } else if (type === "tripleExpPills") {
+      save.tripleExpPills = Math.max(0, Math.floor(Number(save.tripleExpPills) || 0)) + amount;
+    } else if (type === "fiveExpPills") {
+      save.fiveExpPills = Math.max(0, Math.floor(Number(save.fiveExpPills) || 0)) + amount;
+    } else if (type === "tenExpPills") {
+      save.tenExpPills = Math.max(0, Math.floor(Number(save.tenExpPills) || 0)) + amount;
+    } else if (type === "vipTrialLow") {
+      save.vipTrialLow = Math.max(0, Math.floor(Number(save.vipTrialLow) || 0)) + amount;
+    } else if (type === "universalShard") {
+      const shardQuality = String(req.body.shardQuality || "").trim();
+      const allowed = [
+        "normal",
+        "good",
+        "rare",
+        "epic",
+        "legend",
+        "myth",
+        "supreme",
+        "chroma",
+        "god",
+        "black",
+        "zenlegend"
+      ];
+
+      if (!allowed.includes(shardQuality)) {
+        return res.status(400).json({ error: "万能碎片品质错误" });
+      }
+
+      save.universalShards = save.universalShards || {};
+      addToObjectNumber(save.universalShards, shardQuality, amount);
+    } else if (type === "material") {
+      const materialType = String(req.body.materialType || "").trim();
+      const materialQuality = clampInt(req.body.materialQuality, 0, 13, 0);
+      const added = addMaterial(materialType, materialQuality, amount);
+
+      if (added.error) {
+        return res.status(400).json({ error: added.error });
+      }
+    } else if (type === "beastNet") {
+      const netQuality = clampInt(req.body.netQuality, 0, 13, 0);
+
+      save.beastNets = save.beastNets || {};
+      addToObjectNumber(save.beastNets, netQuality, amount);
+    } else if (type === "pill") {
+      save.pills = Array.isArray(save.pills) ? save.pills : [];
+
+      for (let i = 0; i < amount; i++) {
+        const made = makePill();
+
+        if (made.error) {
+          return res.status(400).json({ error: made.error });
+        }
+
+        save.pills.unshift(made.item);
+      }
+
+      save.pills = save.pills.slice(0, 300);
+    } else if (type === "talisman") {
+      save.talismans = Array.isArray(save.talismans) ? save.talismans : [];
+
+      for (let i = 0; i < amount; i++) {
+        const made = makeTalisman();
+
+        if (made.error) {
+          return res.status(400).json({ error: made.error });
+        }
+
+        save.talismans.unshift(made.item);
+      }
+
+      save.talismans = save.talismans.slice(0, 300);
+    } else if (type === "spiritBeast") {
+      save.spiritBeasts = Array.isArray(save.spiritBeasts) ? save.spiritBeasts : [];
+
+      for (let i = 0; i < amount; i++) {
+        const made = makeSpiritBeast(i);
+
+        if (made.error) {
+          return res.status(400).json({ error: made.error });
+        }
+
+        save.spiritBeasts.unshift(made.item);
+      }
+
+      save.spiritBeasts = save.spiritBeasts.slice(0, 200);
+    } else {
+      return res.status(400).json({ error: "不支持的发放类型" });
+    }
+
+    writeUserSave(user.id, save);
+
+    res.json({
+      ok: true,
+      message: `已向 ${user.username} 发放 ${amount} 个/点：${type}`
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: "GM发放失败：" + (err.message || err)
+    });
+  }
 });
-
 app.post("/api/gm/clear-ranking", gmAuth, (req, res) => {
   db.prepare(`DELETE FROM rankings`).run();
 
@@ -3134,9 +3649,9 @@ app.post("/api/gm/clear-yuanbao", gmAuth, (req, res) => {
 
   const { user, save } = result;
 
-  save.yuanbao = 0;
+  setPlayerResource(user.id, "yuanbao", 0);
 
-  writeUserSave(user.id, save);
+writeUserSave(user.id, save);
 
   res.json({
     ok: true,

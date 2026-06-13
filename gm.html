@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>南黎游戏GM后台</title>
+<title>南黎游戏 GM 后台</title>
 <style>
 :root{
   --bg:#090d18;
@@ -14,6 +14,7 @@
   --gold:#ffd166;
   --red:#ff6b7a;
   --green:#65e6a5;
+  --blue:#79bdff;
 }
 *{box-sizing:border-box}
 body{
@@ -23,24 +24,30 @@ body{
   font-family:system-ui,"Microsoft YaHei",sans-serif;
 }
 .wrap{
-  max-width:960px;
-  margin:30px auto;
-  padding:20px;
+  max-width:1280px;
+  margin:24px auto;
+  padding:18px;
 }
 .panel{
   background:linear-gradient(180deg,#202842,#151b2e);
   border:1px solid var(--line);
   border-radius:18px;
-  padding:20px;
+  padding:18px;
   margin-bottom:16px;
   box-shadow:0 18px 44px #0006;
 }
 .grid{
   display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
   gap:14px;
 }
-input,select,button{
+.row{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+input,select,button,textarea{
   width:100%;
   margin:7px 0;
   padding:12px;
@@ -48,7 +55,11 @@ input,select,button{
   border:1px solid var(--line);
   background:#0b1020;
   color:var(--text);
-  font-size:16px;
+  font-size:15px;
+}
+textarea{
+  min-height:92px;
+  resize:vertical;
 }
 button{
   background:linear-gradient(135deg,#4c7dff,#895fff);
@@ -57,16 +68,20 @@ button{
   cursor:pointer;
 }
 button:hover{filter:brightness(1.1)}
+button:disabled{opacity:.45;cursor:not-allowed}
 .danger{
   background:linear-gradient(135deg,#ff5470,#b91c45);
 }
-.gold{
+.goldBtn{
   background:linear-gradient(135deg,#d79020,#ffd166);
   color:#231900;
 }
 .ghost{
   background:#2c3656;
 }
+.good{color:var(--green)}
+.bad{color:var(--red)}
+.goldText{color:var(--gold)}
 .notice{
   margin-top:14px;
   padding:12px;
@@ -76,89 +91,442 @@ button:hover{filter:brightness(1.1)}
   color:var(--gold);
   line-height:1.7;
   min-height:46px;
+  white-space:pre-wrap;
 }
 .muted{
   color:var(--muted);
-  line-height:1.6;
+  line-height:1.65;
+}
+.tag{
+  display:inline-flex;
+  border:1px solid var(--line);
+  background:#111827;
+  border-radius:999px;
+  padding:3px 9px;
+  margin:2px;
+  font-size:12px;
+  color:var(--muted);
 }
 h1,h2,h3{margin:.2em 0 .6em}
+.small{font-size:13px}
+hr{
+  border:0;
+  border-top:1px solid var(--line);
+  margin:14px 0;
+}
+.quick button{
+  width:auto;
+  min-width:110px;
+}
+.hidden{display:none}
+.box{
+  border:1px solid var(--line);
+  background:#101827;
+  border-radius:14px;
+  padding:12px;
+  margin:10px 0;
+}
 </style>
 </head>
 <body>
 <div class="wrap">
+
   <div class="panel">
     <h1>南黎游戏 GM 后台</h1>
-    <p class="muted">请勿公开此页面。GM密钥必须和服务器 `server.js` 里的 `GM_SECRET` 一致。</p>
-    <input id="gmSecret" type="password" placeholder="GM密钥">
-    <div id="result" class="notice">等待操作...</div>
+    <p class="muted">
+      请勿公开此页面。GM密钥必须和服务器 <b>server.js</b> 里的 <b>GM_SECRET</b> 一致。<br>
+      当前页面是“全物品发放版”，需要你的 <b>server.js /api/gm/grant</b> 配套支持。
+    </p>
+
+    <div class="grid">
+      <div>
+        <input id="gmSecret" type="password" placeholder="GM密钥">
+        <div class="row quick">
+          <button class="ghost" onclick="saveSecret()">保存密钥到本机</button>
+          <button class="danger" onclick="clearSecret()">清除本机密钥</button>
+        </div>
+      </div>
+      <div>
+        <div id="result" class="notice">等待操作...</div>
+      </div>
+    </div>
   </div>
 
   <div class="grid">
+
     <div class="panel">
-      <h2>发放道具</h2>
+      <h2>发放资源 / 道具 / 灵兽</h2>
+      <p class="muted small">
+        选择发放类型后，下方会显示对应参数。数量表示发放数量；灵兽数量通常填 1。
+      </p>
+
       <input id="grantUsername" placeholder="玩家用户名">
 
-      <select id="type">
-        <option value="yuanbao">元宝</option>
-        <option value="forgeStones">锻造石</option>
-        <option value="vipExp">VIP经验</option>
-        <option value="doubleExpPills">双倍经验丹</option>
-        <option value="tripleExpPills">三倍经验丹</option>
-        <option value="fiveExpPills">五倍经验丹</option>
-        <option value="tenExpPills">十倍经验丹</option>
-        <option value="vipTrialLow">初阶VIP体验卡</option>
-        <option value="universalShard">万能碎片</option>
+      <select id="type" onchange="onGrantTypeChange()">
+        <optgroup label="服务器权威资源">
+          <option value="yuanbao">元宝</option>
+          <option value="copper">铜币</option>
+          <option value="forgeStones">锻造石</option>
+          <option value="vipExp">VIP经验</option>
+          <option value="guildToken">帮派令</option>
+          <option value="fateRerollStones">命格重铸石</option>
+          <option value="beastCoins">斗兽币</option>
+        </optgroup>
+
+        <optgroup label="消耗品">
+          <option value="doubleExpPills">双倍经验丹</option>
+          <option value="tripleExpPills">三倍经验丹</option>
+          <option value="fiveExpPills">五倍经验丹</option>
+          <option value="tenExpPills">十倍经验丹</option>
+          <option value="vipTrialLow">VIP体验次数</option>
+        </optgroup>
+
+        <optgroup label="碎片 / 材料 / 捕兽网">
+          <option value="universalShard">万能碎片</option>
+          <option value="material">矿石 / 草药 / 兽皮</option>
+          <option value="beastNet">捕兽网</option>
+        </optgroup>
+
+        <optgroup label="生活职业产物">
+          <option value="pill">丹药</option>
+          <option value="talisman">符箓</option>
+        </optgroup>
+
+        <optgroup label="灵兽">
+          <option value="spiritBeast">灵兽</option>
+        </optgroup>
       </select>
 
-      <select id="shardQuality">
-        <option value="normal">普通万能碎片</option>
-        <option value="good">优秀万能碎片</option>
-        <option value="rare">精良万能碎片</option>
-        <option value="epic">卓越万能碎片</option>
-        <option value="legend">传说万能碎片</option>
-        <option value="myth">神话万能碎片</option>
-        <option value="supreme">至臻万能碎片</option>
-        <option value="chroma">炫彩万能碎片</option>
-        <option value="god">神万能碎片</option>
-        <option value="black">黑万能碎片</option>
-      </select>
+      <div id="shardBox" class="box hidden">
+        <h3>万能碎片参数</h3>
+        <select id="shardQuality">
+          <option value="normal">普通万能碎片</option>
+          <option value="good">优秀万能碎片</option>
+          <option value="rare">精良万能碎片</option>
+          <option value="epic">卓越万能碎片</option>
+          <option value="legend">传说万能碎片</option>
+          <option value="myth">神话万能碎片</option>
+          <option value="supreme">至臻万能碎片</option>
+          <option value="chroma">炫彩万能碎片</option>
+          <option value="god">神万能碎片</option>
+          <option value="black">黑万能碎片</option>
+          <option value="zenlegend">臻彩传奇万能碎片</option>
+        </select>
+      </div>
+
+      <div id="materialBox" class="box hidden">
+        <h3>材料参数</h3>
+        <select id="materialType">
+          <option value="ore">矿石</option>
+          <option value="herb">草药</option>
+          <option value="hide">兽皮</option>
+        </select>
+        <select id="materialQuality">
+          <option value="0">劣质</option>
+          <option value="1">普通</option>
+          <option value="2">优秀</option>
+          <option value="3">精良</option>
+          <option value="4">卓越</option>
+          <option value="5">传说</option>
+          <option value="6">神话</option>
+          <option value="7">传奇</option>
+          <option value="8">炫彩传说</option>
+          <option value="9">炫彩神话</option>
+          <option value="10">炫彩传奇</option>
+          <option value="11">臻彩传说</option>
+          <option value="12">臻彩神话</option>
+          <option value="13">臻彩传奇</option>
+        </select>
+      </div>
+
+      <div id="netBox" class="box hidden">
+        <h3>捕兽网参数</h3>
+        <select id="netQuality">
+          <option value="0">劣质捕兽网</option>
+          <option value="1">普通捕兽网</option>
+          <option value="2">优秀捕兽网</option>
+          <option value="3">精良捕兽网</option>
+          <option value="4">卓越捕兽网</option>
+          <option value="5">传说捕兽网</option>
+          <option value="6">神话捕兽网</option>
+          <option value="7">传奇捕兽网</option>
+          <option value="8">炫彩传说捕兽网</option>
+          <option value="9">炫彩神话捕兽网</option>
+          <option value="10">炫彩传奇捕兽网</option>
+          <option value="11">臻彩传说捕兽网</option>
+          <option value="12">臻彩神话捕兽网</option>
+          <option value="13">臻彩传奇捕兽网</option>
+        </select>
+      </div>
+
+      <div id="pillBox" class="box hidden">
+        <h3>丹药参数</h3>
+        <select id="pillStage">
+          <option value="fan">凡阶</option>
+          <option value="ling">灵阶</option>
+          <option value="tian">天阶</option>
+          <option value="di">地阶</option>
+          <option value="xian">仙阶</option>
+          <option value="shen">神阶</option>
+        </select>
+        <select id="pillGrade">
+          <option value="low">下等</option>
+          <option value="mid">中等</option>
+          <option value="high">上等</option>
+        </select>
+        <select id="pillStat">
+          <option value="power">永久战力</option>
+          <option value="exp">永久经验收益</option>
+          <option value="yb">永久元宝收益</option>
+          <option value="gear">永久装备掉率</option>
+          <option value="kill">永久击杀速度</option>
+        </select>
+        <input id="pillName" placeholder="丹药名，可留空自动生成">
+        <input id="pillValue" type="number" step="0.0001" placeholder="丹药效果值，可留空自动按阶级生成">
+        <p class="muted small">
+          例：永久经验 0.01 = 1%；永久战力填写整数，例如 50。
+        </p>
+      </div>
+
+      <div id="talismanBox" class="box hidden">
+        <h3>符箓参数</h3>
+        <select id="talismanStage">
+          <option value="fan">凡阶</option>
+          <option value="ling">灵阶</option>
+          <option value="tian">天阶</option>
+          <option value="di">地阶</option>
+          <option value="xian">仙阶</option>
+          <option value="shen">神阶</option>
+        </select>
+        <select id="talismanType">
+          <option value="power">战力符</option>
+          <option value="exp">聚灵符</option>
+          <option value="yb">聚宝符</option>
+          <option value="gear">寻宝符</option>
+          <option value="kill">疾杀符</option>
+        </select>
+        <input id="talismanName" placeholder="符箓名，可留空自动生成">
+        <input id="talismanValue" type="number" step="0.0001" placeholder="符箓加成值，可留空自动按阶级生成">
+        <input id="talismanDuration" type="number" placeholder="持续分钟数，可留空默认60分钟">
+        <p class="muted small">
+          例：0.2 = 20% 加成；持续分钟数填 480 表示 8 小时。
+        </p>
+      </div>
+
+      <div id="beastBox" class="box hidden">
+        <h3>灵兽参数</h3>
+        <input id="beastName" placeholder="灵兽名字，例如：太初灵龙">
+        <select id="beastQuality">
+          <option value="0">普通</option>
+          <option value="1">优秀</option>
+          <option value="2">精良</option>
+          <option value="3">卓越</option>
+          <option value="4">传说</option>
+          <option value="5">神话</option>
+          <option value="6">至臻</option>
+          <option value="7">炫彩</option>
+          <option value="8">神</option>
+          <option value="9">黑</option>
+          <option value="10">臻彩传奇</option>
+        </select>
+        <select id="beastType">
+          <option value="battle">战斗型</option>
+          <option value="support">辅助型</option>
+        </select>
+        <input id="beastLevel" type="number" min="1" max="100" value="1" placeholder="等级，1-100">
+        <input id="beastAptitude" type="number" min="1" max="100" value="80" placeholder="资质，1-100">
+        <input id="beastAffinity" type="number" min="0" max="100" value="0" placeholder="好感度，0-100">
+        <input id="beastEvolve" type="number" min="0" value="0" placeholder="进化次数">
+        <input id="beastActiveSkill" placeholder="主动技能，可留空">
+        <input id="beastPassiveSkill" placeholder="被动技能，可留空">
+        <label class="muted small">
+          <input id="beastAppraised" type="checkbox" checked style="width:auto;margin-right:6px">
+          发放时默认已鉴定资质
+        </label>
+        <label class="muted small">
+          <input id="beastTradeBound" type="checkbox" style="width:auto;margin-right:6px">
+          发放为绑定灵兽
+        </label>
+      </div>
 
       <input id="amount" type="number" min="1" value="1" placeholder="数量">
-      <button class="gold" onclick="grant()">发放道具</button>
+
+      <div class="row quick">
+        <button class="ghost" onclick="setAmount(1)">1</button>
+        <button class="ghost" onclick="setAmount(10)">10</button>
+        <button class="ghost" onclick="setAmount(100)">100</button>
+        <button class="ghost" onclick="setAmount(1000)">1000</button>
+        <button class="ghost" onclick="setAmount(10000)">10000</button>
+      </div>
+
+      <button class="goldBtn" onclick="grant()">发放</button>
+
+      <p class="muted small">
+        提醒：前端已提交所有参数，但 server.js 必须同步扩展 /api/gm/grant 才能真正发放材料、捕兽网、丹药、符箓、灵兽。
+      </p>
     </div>
 
-<div class="panel">
-  <h2>玩家处理</h2>
-  <input id="targetUsername" placeholder="玩家用户名">
+    <div class="panel">
+      <h2>玩家处理</h2>
+      <input id="targetUsername" placeholder="玩家用户名">
 
-  <button class="danger" onclick="banUser()">一键封号</button>
-  <button class="ghost" onclick="unbanUser()">解除封号</button>
+      <button class="danger" onclick="banUser()">一键封号</button>
+      <button class="ghost" onclick="unbanUser()">解除封号</button>
 
-  <input id="muteMinutes" type="number" min="1" value="60" placeholder="禁言分钟数">
-  <button class="danger" onclick="muteUser()">禁言玩家</button>
-  <button class="ghost" onclick="unmuteUser()">解除禁言</button>
+      <hr>
 
-  <button class="danger" onclick="clearYuanbao()">清空元宝</button>
-  <button class="danger" onclick="clearShards()">清空万能碎片</button>
+      <input id="muteMinutes" type="number" min="1" value="60" placeholder="禁言分钟数">
+      <div class="row quick">
+        <button class="ghost" onclick="setMute(10)">10分钟</button>
+        <button class="ghost" onclick="setMute(60)">1小时</button>
+        <button class="ghost" onclick="setMute(1440)">1天</button>
+        <button class="ghost" onclick="setMute(10080)">7天</button>
+      </div>
+      <button class="danger" onclick="muteUser()">禁言玩家</button>
+      <button class="ghost" onclick="unmuteUser()">解除禁言</button>
 
-  <p class="muted">封号后玩家无法登录。禁言后玩家无法发送世界、私聊、帮会聊天。</p>
-</div>
+      <hr>
+
+      <button class="danger" onclick="clearYuanbao()">清空元宝</button>
+      <button class="danger" onclick="clearShards()">清空万能碎片</button>
+
+      <p class="muted small">
+        封号后玩家无法登录。禁言后玩家无法发送世界、私聊、帮会聊天。
+      </p>
+    </div>
 
     <div class="panel">
       <h2>全服操作</h2>
-      <button class="danger" onclick="clearRanking()">一键清空排行榜</button>
-      <p class="muted">清空排行榜不会删除玩家账号，也不会删除玩家存档。玩家下次自动上传战力后可能重新上榜。</p>
+
+      <button class="danger" onclick="clearRanking()">一键清空战力排行榜</button>
+
+      <p class="muted small">
+        清空排行榜不会删除账号，也不会删除玩家存档。玩家下次上传战力后可能重新上榜。
+      </p>
+
+      <hr>
+
+      <h3>GM公告说明</h3>
+      <p class="muted small">
+        游戏内 GM 账号聊天指令：<br>
+        <span class="tag">GG 公告内容</span><br><br>
+        玩家在线时会收到全服通报。如果 game.html 已加横幅功能，玩家界面会弹出横幅。
+      </p>
     </div>
+
+    <div class="panel">
+      <h2>新版系统说明</h2>
+      <p class="muted">
+        当前后台页面已提供所有发放选项。是否能成功，取决于 server.js 是否已实现对应发放逻辑。
+      </p>
+
+      <h3>已列入发放面板</h3>
+      <p>
+        <span class="tag">元宝</span>
+        <span class="tag">铜币</span>
+        <span class="tag">锻造石</span>
+        <span class="tag">VIP经验</span>
+        <span class="tag">帮派令</span>
+        <span class="tag">命格重铸石</span>
+        <span class="tag">斗兽币</span>
+        <span class="tag">经验丹</span>
+        <span class="tag">VIP体验</span>
+        <span class="tag">万能碎片</span>
+        <span class="tag">矿石</span>
+        <span class="tag">草药</span>
+        <span class="tag">兽皮</span>
+        <span class="tag">捕兽网</span>
+        <span class="tag">丹药</span>
+        <span class="tag">符箓</span>
+        <span class="tag">灵兽</span>
+      </p>
+
+      <h3>建议 server.js 配套字段</h3>
+      <p class="muted small">
+        materialType / materialQuality / netQuality / pillStage / pillGrade / pillStat / pillName / pillValue / talismanStage / talismanType / talismanName / talismanValue / talismanDuration / beastName / beastQuality / beastType / beastLevel / beastAptitude / beastAffinity / beastEvolve / beastActiveSkill / beastPassiveSkill / beastAppraised / beastTradeBound
+      </p>
+    </div>
+
   </div>
 </div>
 
 <script>
 function getSecret() {
-  return document.getElementById("gmSecret").value;
+  return document.getElementById("gmSecret").value.trim();
 }
 
 function show(text) {
   document.getElementById("result").textContent = text;
+}
+
+function saveSecret() {
+  const s = getSecret();
+  if (!s) {
+    show("请输入GM密钥后再保存");
+    return;
+  }
+  localStorage.setItem("nanli_gm_secret", s);
+  show("GM密钥已保存到本机浏览器。");
+}
+
+function clearSecret() {
+  localStorage.removeItem("nanli_gm_secret");
+  document.getElementById("gmSecret").value = "";
+  show("本机保存的GM密钥已清除。");
+}
+
+function setAmount(n) {
+  document.getElementById("amount").value = n;
+}
+
+function setMute(n) {
+  document.getElementById("muteMinutes").value = n;
+}
+
+function hideAllExtraBoxes() {
+  const ids = [
+    "shardBox",
+    "materialBox",
+    "netBox",
+    "pillBox",
+    "talismanBox",
+    "beastBox"
+  ];
+
+  ids.forEach(id => {
+    const box = document.getElementById(id);
+    if (box) box.classList.add("hidden");
+  });
+}
+
+function onGrantTypeChange() {
+  const type = document.getElementById("type").value;
+
+  hideAllExtraBoxes();
+
+  if (type === "universalShard") {
+    document.getElementById("shardBox").classList.remove("hidden");
+  }
+
+  if (type === "material") {
+    document.getElementById("materialBox").classList.remove("hidden");
+  }
+
+  if (type === "beastNet") {
+    document.getElementById("netBox").classList.remove("hidden");
+  }
+
+  if (type === "pill") {
+    document.getElementById("pillBox").classList.remove("hidden");
+  }
+
+  if (type === "talisman") {
+    document.getElementById("talismanBox").classList.remove("hidden");
+  }
+
+  if (type === "spiritBeast") {
+    document.getElementById("beastBox").classList.remove("hidden");
+  }
 }
 
 async function postGM(url, body = {}) {
@@ -169,31 +537,47 @@ async function postGM(url, body = {}) {
     return null;
   }
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-gm-secret": gmSecret
-    },
-    body: JSON.stringify(body)
-  });
+  show("正在执行操作...");
 
-  const data = await res.json().catch(() => ({}));
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-gm-secret": gmSecret
+      },
+      body: JSON.stringify(body)
+    });
 
-  if (!res.ok) {
-    show(data.error || "操作失败");
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      show(data.error || "操作失败");
+      return null;
+    }
+
+    show(data.message || "操作成功");
+    return data;
+  } catch (err) {
+    show("请求失败：" + (err.message || err));
     return null;
   }
+}
 
-  show(data.message || "操作成功");
-  return data;
+function value(id) {
+  const el = document.getElementById(id);
+  return el ? el.value : "";
+}
+
+function checked(id) {
+  const el = document.getElementById(id);
+  return el ? !!el.checked : false;
 }
 
 async function grant() {
-  const username = document.getElementById("grantUsername").value.trim();
-  const type = document.getElementById("type").value;
-  const shardQuality = document.getElementById("shardQuality").value;
-  const amount = Number(document.getElementById("amount").value || 0);
+  const username = value("grantUsername").trim();
+  const type = value("type");
+  const amount = Math.floor(Number(value("amount") || 0));
 
   if (!username) {
     show("请输入玩家用户名");
@@ -205,17 +589,49 @@ async function grant() {
     return;
   }
 
-  await postGM("/api/gm/grant", {
+  const body = {
     username,
     type,
-    shardQuality,
-    amount
-  });
+    amount,
+
+    shardQuality: value("shardQuality"),
+
+    materialType: value("materialType"),
+    materialQuality: Math.floor(Number(value("materialQuality") || 0)),
+
+    netQuality: Math.floor(Number(value("netQuality") || 0)),
+
+    pillStage: value("pillStage"),
+    pillGrade: value("pillGrade"),
+    pillStat: value("pillStat"),
+    pillName: value("pillName").trim(),
+    pillValue: value("pillValue") === "" ? "" : Number(value("pillValue")),
+
+    talismanStage: value("talismanStage"),
+    talismanType: value("talismanType"),
+    talismanName: value("talismanName").trim(),
+    talismanValue: value("talismanValue") === "" ? "" : Number(value("talismanValue")),
+    talismanDuration: value("talismanDuration") === "" ? "" : Number(value("talismanDuration")),
+
+    beastName: value("beastName").trim(),
+    beastQuality: Math.floor(Number(value("beastQuality") || 0)),
+    beastType: value("beastType"),
+    beastLevel: Math.floor(Number(value("beastLevel") || 1)),
+    beastAptitude: Math.floor(Number(value("beastAptitude") || 80)),
+    beastAffinity: Math.floor(Number(value("beastAffinity") || 0)),
+    beastEvolve: Math.floor(Number(value("beastEvolve") || 0)),
+    beastActiveSkill: value("beastActiveSkill").trim(),
+    beastPassiveSkill: value("beastPassiveSkill").trim(),
+    beastAppraised: checked("beastAppraised"),
+    beastTradeBound: checked("beastTradeBound")
+  };
+
+  await postGM("/api/gm/grant", body);
 }
 
 async function muteUser() {
-  const username = document.getElementById("targetUsername").value.trim();
-  const minutes = Number(document.getElementById("muteMinutes").value || 60);
+  const username = value("targetUsername").trim();
+  const minutes = Math.floor(Number(value("muteMinutes") || 60));
 
   if (!username) {
     show("请输入玩家用户名");
@@ -238,10 +654,14 @@ async function muteUser() {
 }
 
 async function unmuteUser() {
-  const username = document.getElementById("targetUsername").value.trim();
+  const username = value("targetUsername").trim();
 
   if (!username) {
     show("请输入玩家用户名");
+    return;
+  }
+
+  if (!confirm("确定解除玩家【" + username + "】的禁言？")) {
     return;
   }
 
@@ -249,15 +669,16 @@ async function unmuteUser() {
     username
   });
 }
+
 async function banUser() {
-  const username = document.getElementById("targetUsername").value.trim();
+  const username = value("targetUsername").trim();
 
   if (!username) {
     show("请输入玩家用户名");
     return;
   }
 
-  if (!confirm("确定封禁玩家：" + username + "？")) {
+  if (!confirm("确定封禁玩家【" + username + "】？封禁后该玩家无法登录。")) {
     return;
   }
 
@@ -265,10 +686,14 @@ async function banUser() {
 }
 
 async function unbanUser() {
-  const username = document.getElementById("targetUsername").value.trim();
+  const username = value("targetUsername").trim();
 
   if (!username) {
     show("请输入玩家用户名");
+    return;
+  }
+
+  if (!confirm("确定解除玩家【" + username + "】的封禁？")) {
     return;
   }
 
@@ -276,14 +701,14 @@ async function unbanUser() {
 }
 
 async function clearYuanbao() {
-  const username = document.getElementById("targetUsername").value.trim();
+  const username = value("targetUsername").trim();
 
   if (!username) {
     show("请输入玩家用户名");
     return;
   }
 
-  if (!confirm("确定清空玩家【" + username + "】的元宝？")) {
+  if (!confirm("确定清空玩家【" + username + "】的元宝？此操作不可撤销。")) {
     return;
   }
 
@@ -291,14 +716,14 @@ async function clearYuanbao() {
 }
 
 async function clearShards() {
-  const username = document.getElementById("targetUsername").value.trim();
+  const username = value("targetUsername").trim();
 
   if (!username) {
     show("请输入玩家用户名");
     return;
   }
 
-  if (!confirm("确定清空玩家【" + username + "】的万能碎片？")) {
+  if (!confirm("确定清空玩家【" + username + "】的所有万能碎片？此操作不可撤销。")) {
     return;
   }
 
@@ -306,12 +731,20 @@ async function clearShards() {
 }
 
 async function clearRanking() {
-  if (!confirm("确定清空全服排行榜？")) {
+  if (!confirm("确定清空全服战力排行榜？")) {
     return;
   }
 
   await postGM("/api/gm/clear-ranking");
 }
+
+window.addEventListener("load", () => {
+  const saved = localStorage.getItem("nanli_gm_secret") || "";
+  if (saved) {
+    document.getElementById("gmSecret").value = saved;
+  }
+  onGrantTypeChange();
+});
 </script>
 </body>
 </html>
