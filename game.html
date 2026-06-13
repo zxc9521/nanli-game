@@ -3492,6 +3492,21 @@ if(type==="beastmaster"){
 
  return "";
 }
+function pillBagHTML(){
+ return `<div class="panel">
+  <h2>丹药背包</h2>
+  <p class="muted">丹药由炼丹师炼制，但所有职业都可以服用。服用后永久增加少量属性。</p>
+  ${(S.pills||[]).length?`<div class="grid">
+   ${(S.pills||[]).map(pill=>`
+    <div class="card">
+     <h3 class="gold">${pill.name}</h3>
+     <p>效果：${pillEffectText(pill)}<br>服用后永久生效。</p>
+     <button class="goldBtn" onclick="Game.usePillItem('${pill.id}')">服用</button>
+    </div>
+   `).join("")}
+  </div>`:"<p class='muted'>暂无丹药。可以通过炼丹或交易行购买获得。</p>"}
+ </div>`;
+}
 function alchemyHTML(){
  const isAlchemist=S.profession?.type==="alchemist";
 
@@ -3537,17 +3552,21 @@ function alchemyHTML(){
   </div>
  </div>
 
- <div class="panel">
-  <h2>丹药背包</h2>
-  ${(S.pills||[]).length?`<div class="grid">
-   ${(S.pills||[]).map(pill=>`
+  `;
+}
+function talismanBagHTML(){
+ return `<div class="panel">
+  <h2>符箓背包</h2>
+  <p class="muted">符箓由符箓师制作，但所有职业都可以使用。使用后获得临时属性加成。</p>
+  ${(S.talismans||[]).length?`<div class="grid">
+   ${(S.talismans||[]).map(t=>`
     <div class="card">
-     <h3 class="gold">${pill.name}</h3>
-     <p>效果：${pillEffectText(pill)}<br>服用后永久生效。</p>
-     <button class="goldBtn" onclick="Game.usePillItem('${pill.id}')">服用</button>
+     <h3 class="gold">${t.name}</h3>
+     <p>效果：${talismanEffectText(t)}</p>
+     <button class="goldBtn" onclick="Game.useTalisman('${t.id}')">使用符箓</button>
     </div>
    `).join("")}
-  </div>`:"<p class='muted'>暂无丹药。炼丹成功后会出现在这里。</p>"}
+  </div>`:"<p class='muted'>暂无符箓。可以通过制作或交易行购买获得。</p>"}
  </div>`;
 }
 function talismanHTML(){
@@ -4236,6 +4255,8 @@ function lifeHTML(){
  ${materialBagHTML()}
 
   ${professionDetailHTML()}
+${pillBagHTML()}
+${talismanBagHTML()}
 
   <div class="panel">
   <h2>职业系统说明</h2>
