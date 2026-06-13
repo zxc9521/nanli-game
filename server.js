@@ -570,8 +570,28 @@ function writeUserSave(userId, save) {
 
   save = save && typeof save === "object" ? save : {};
 
-  const resources = ensurePlayerResources(userId, save);
-  applyResourcesToSave(save, resources);
+  let oldSave = {};
+
+  const oldRow = db.prepare(`
+    SELECT save_data
+    FROM users
+    WHERE id = ?
+  `).get(userId);
+
+  try {
+    oldSave = oldRow && oldRow.save_data ? JSON.parse(oldRow.save_data) : {};
+  } catch {
+    oldSave = {};
+  }
+
+  // 关键：防止旧本地 0 覆盖服务器已有资源
+  save.yuanbao = Math.max(num(oldSave.yuanbao), num(save.yuanbao));
+  save.copper = Math.max(num(oldSave.copper), num(save.copper));
+  save.forgeStones = Math.max(num(oldSave.forgeStones), num(save.forgeStones));
+  save.vipExp = Math.max(num(oldSave.vipExp), num(save.vipExp));
+  save.guildToken = Math.max(num(oldSave.guildToken), num(save.guildToken));
+  save.fateRerollStones = Math.max(num(oldSave.fateRerollStones), num(save.fateRerollStones));
+  save.beastCoins = Math.max(num(oldSave.beastCoins), num(save.beastCoins));
 
   save.last = now;
   save.cloudUpdatedAt = now;
@@ -581,6 +601,32 @@ function writeUserSave(userId, save) {
     SET save_data = ?, save_updated_at = ?
     WHERE id = ?
   `).run(JSON.stringify(save), now, userId);
+
+  // player_resources 只同步，不再反过来覆盖存档
+  ensurePlayerResources(userId, save);
+
+  db.prepare(`
+    UPDATE player_resources
+    SET yuanbao = ?,
+        copper = ?,
+        forgeStones = ?,
+        vipExp = ?,
+        guildToken = ?,
+        fateRerollStones = ?,
+        beastCoins = ?,
+        updated_at = ?
+    WHERE user_id = ?
+  `).run(
+    num(save.yuanbao),
+    num(save.copper),
+    num(save.forgeStones),
+    num(save.vipExp),
+    num(save.guildToken),
+    num(save.fateRerollStones),
+    num(save.beastCoins),
+    now,
+    userId
+  );
 
   return now;
 }
@@ -1079,12 +1125,11 @@ app.get("/api/save", auth, (req, res) => {
   }
 
   try {
-    const save = JSON.parse(user.save_data);
-
-    const resources = ensurePlayerResources(req.user.id, save);
-    applyResourcesToSave(save, resources);
+        const save = JSON.parse(user.save_data);
 
     save.cloudUpdatedAt = user.save_updated_at || 0;
+
+    ensurePlayerResources(req.user.id, save);
 
     res.json({
       save,
@@ -1107,7 +1152,7 @@ app.post("/api/save", auth, (req, res) => {
   }
 
   const current = db.prepare(`
-    SELECT save_updated_at
+    SELECT save_updated_at, save_data
     FROM users
     WHERE id = ?
   `).get(req.user.id);
@@ -1123,42 +1168,22 @@ app.post("/api/save", auth, (req, res) => {
     });
   }
 
-  const oldResources = ensurePlayerResources(req.user.id, save);
+  let oldSave = {};
 
-  const mergedResources = {
-    yuanbao: Math.max(num(oldResources.yuanbao), num(save.yuanbao)),
-    copper: Math.max(num(oldResources.copper), num(save.copper)),
-    forgeStones: Math.max(num(oldResources.forgeStones), num(save.forgeStones)),
-    vipExp: Math.max(num(oldResources.vipExp), num(save.vipExp)),
-    guildToken: Math.max(num(oldResources.guildToken), num(save.guildToken)),
-    fateRerollStones: Math.max(num(oldResources.fateRerollStones), num(save.fateRerollStones)),
-    beastCoins: Math.max(num(oldResources.beastCoins), num(save.beastCoins))
-  };
+  try {
+    oldSave = current && current.save_data ? JSON.parse(current.save_data) : {};
+  } catch {
+    oldSave = {};
+  }
 
-  db.prepare(`
-    UPDATE player_resources
-    SET yuanbao = ?,
-        copper = ?,
-        forgeStones = ?,
-        vipExp = ?,
-        guildToken = ?,
-        fateRerollStones = ?,
-        beastCoins = ?,
-        updated_at = ?
-    WHERE user_id = ?
-  `).run(
-    mergedResources.yuanbao,
-    mergedResources.copper,
-    mergedResources.forgeStones,
-    mergedResources.vipExp,
-    mergedResources.guildToken,
-    mergedResources.fateRerollStones,
-    mergedResources.beastCoins,
-    Date.now(),
-    req.user.id
-  );
-
-  applyResourcesToSave(save, mergedResources);
+  // 关键：旧本地 0 不准覆盖服务器已有资源
+  save.yuanbao = Math.max(num(oldSave.yuanbao), num(save.yuanbao));
+  save.copper = Math.max(num(oldSave.copper), num(save.copper));
+  save.forgeStones = Math.max(num(oldSave.forgeStones), num(save.forgeStones));
+  save.vipExp = Math.max(num(oldSave.vipExp), num(save.vipExp));
+  save.guildToken = Math.max(num(oldSave.guildToken), num(save.guildToken));
+  save.fateRerollStones = Math.max(num(oldSave.fateRerollStones), num(save.fateRerollStones));
+  save.beastCoins = Math.max(num(oldSave.beastCoins), num(save.beastCoins));
 
   const saveTextCheck = JSON.stringify(save);
 
@@ -1178,6 +1203,31 @@ app.post("/api/save", auth, (req, res) => {
     SET save_data = ?, save_updated_at = ?
     WHERE id = ?
   `).run(saveText, now, req.user.id);
+
+  ensurePlayerResources(req.user.id, save);
+
+  db.prepare(`
+    UPDATE player_resources
+    SET yuanbao = ?,
+        copper = ?,
+        forgeStones = ?,
+        vipExp = ?,
+        guildToken = ?,
+        fateRerollStones = ?,
+        beastCoins = ?,
+        updated_at = ?
+    WHERE user_id = ?
+  `).run(
+    num(save.yuanbao),
+    num(save.copper),
+    num(save.forgeStones),
+    num(save.vipExp),
+    num(save.guildToken),
+    num(save.fateRerollStones),
+    num(save.beastCoins),
+    now,
+    req.user.id
+  );
 
   res.json({
     ok: true,
@@ -3410,20 +3460,20 @@ app.post("/api/gm/grant", gmAuth, (req, res) => {
 
   try {
     if (type === "yuanbao") {
-      addPlayerResource(user.id, "yuanbao", amount);
-    } else if (type === "copper") {
-      addPlayerResource(user.id, "copper", amount);
-    } else if (type === "forgeStones") {
-      addPlayerResource(user.id, "forgeStones", amount);
-    } else if (type === "vipExp") {
-      addPlayerResource(user.id, "vipExp", amount);
-    } else if (type === "guildToken") {
-      addPlayerResource(user.id, "guildToken", amount);
-    } else if (type === "fateRerollStones") {
-      addPlayerResource(user.id, "fateRerollStones", amount);
-    } else if (type === "beastCoins") {
-      addPlayerResource(user.id, "beastCoins", amount);
-    } else if (type === "doubleExpPills") {
+  save.yuanbao = num(save.yuanbao) + amount;
+} else if (type === "copper") {
+  save.copper = num(save.copper) + amount;
+} else if (type === "forgeStones") {
+  save.forgeStones = num(save.forgeStones) + amount;
+} else if (type === "vipExp") {
+  save.vipExp = num(save.vipExp) + amount;
+} else if (type === "guildToken") {
+  save.guildToken = num(save.guildToken) + amount;
+} else if (type === "fateRerollStones") {
+  save.fateRerollStones = num(save.fateRerollStones) + amount;
+} else if (type === "beastCoins") {
+  save.beastCoins = num(save.beastCoins) + amount;
+} else if (type === "doubleExpPills") {
       save.doubleExpPills = Math.max(0, Math.floor(Number(save.doubleExpPills) || 0)) + amount;
     } else if (type === "tripleExpPills") {
       save.tripleExpPills = Math.max(0, Math.floor(Number(save.tripleExpPills) || 0)) + amount;
