@@ -834,7 +834,17 @@ function fresh(){
 }
 function normalize(data){
  const base=fresh(),r=Object.assign(base,data||{});
+r.balanceVersion=Math.max(0,Math.floor(Number(r.balanceVersion)||0));
+r.tab=String(r.tab||"home");
+r.level=Math.max(1,Math.floor(Number(r.level)||1));
+r.exp=Math.max(0,Math.floor(Number(r.exp)||0));
+r.yuanbao=Math.max(0,Math.floor(Number(r.yuanbao)||0));
 r.copper=Math.max(0,Math.floor(Number(r.copper)||0));
+r.forgeStones=Math.max(0,Math.floor(Number(r.forgeStones)||0));
+r.vipExp=Math.max(0,Math.floor(Number(r.vipExp)||0));
+r.guildToken=Math.max(0,Math.floor(Number(r.guildToken)||0));
+r.fateRerollStones=Math.max(0,Math.floor(Number(r.fateRerollStones)||0));
+r.beastCoins=Math.max(0,Math.floor(Number(r.beastCoins)||0));
 r.market=(typeof r.market==="object"&&r.market)?r.market:{nextRefresh:0,merchants:[],blackMerchant:null};
 r.market.nextRefresh=Math.max(0,Math.floor(Number(r.market.nextRefresh)||0));
 r.market.merchants=Array.isArray(r.market.merchants)?r.market.merchants:[];
@@ -920,7 +930,14 @@ r.arenaLogs=Array.isArray(r.arenaLogs)?r.arenaLogs.slice(0,60):[];
 return r;
 }
 function load(){try{const data=JSON.parse(localStorage.getItem(SAVE_KEY));return data&&data.inventory?normalize(data):fresh()}catch{return fresh()}}
-function save(){syncArtifact();S.last=Date.now();localStorage.setItem(SAVE_KEY,JSON.stringify(S));log("存档保存成功。");render()}
+function save(){
+ S=normalize(S);
+ syncArtifact();
+ S.last=Date.now();
+ localStorage.setItem(SAVE_KEY,JSON.stringify(S));
+ log("存档保存成功。");
+ render();
+}
 function reset(){if(confirm("确定重置全部存档？口令伴生法器会保留。")){localStorage.removeItem(SAVE_KEY);S=fresh();syncArtifact();refreshTasks(true);render()}}
 function makeId(){return Date.now()+Math.random().toString(16).slice(2)}
 function fmt(v){return Math.floor(v||0).toLocaleString()}
@@ -4427,6 +4444,7 @@ function giftHTML(){return `<div class="panel"><h2>礼包中心</h2><p class="mu
 syncArtifact();refreshTasks();applyBalance2Migration();calcOffline();render();
 setInterval(()=>{
  tick(1,false);
+ S=normalize(S);
  S.last=Date.now();
  if(Date.now()-lastRender>1200 && !shouldSkipAutoRender()){
   render();
@@ -4584,7 +4602,31 @@ async uploadSave() {
     return;
   }
 
-  const save = Game.exportSave();
+    const save = Game.exportSave();
+
+  const numberFields = [
+    "level",
+    "exp",
+    "yuanbao",
+    "copper",
+    "forgeStones",
+    "vipExp",
+    "guildToken",
+    "fateRerollStones",
+    "beastCoins"
+  ];
+
+  for (const key of numberFields) {
+    const n = Number(save[key]);
+
+    if (!Number.isFinite(n)) {
+      save[key] = key === "level" ? 1 : 0;
+    } else {
+      save[key] = key === "level"
+        ? Math.max(1, Math.floor(n))
+        : Math.max(0, Math.floor(n));
+    }
+  }
 
   const res = await fetch("/api/save", {
     method: "POST",

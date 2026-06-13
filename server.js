@@ -1150,6 +1150,25 @@ app.post("/api/save", auth, (req, res) => {
   if (!save || typeof save !== "object" || Array.isArray(save)) {
     return res.status(400).json({ error: "存档格式错误" });
   }
+  const importantNumberFields = [
+    "level",
+    "exp",
+    "yuanbao",
+    "copper",
+    "forgeStones",
+    "vipExp",
+    "guildToken",
+    "fateRerollStones",
+    "beastCoins"
+  ];
+
+  for (const key of importantNumberFields) {
+    if (save[key] === null || save[key] === undefined || !Number.isFinite(Number(save[key]))) {
+      return res.status(400).json({
+        error: `存档字段异常：${key} 不能是空值，请刷新页面后重新登录`
+      });
+    }
+  }
 
   const current = db.prepare(`
     SELECT save_updated_at, save_data
