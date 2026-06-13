@@ -46,7 +46,7 @@ const ARENA_SKILL_NAMES = {
 };
 
 app.use(express.json({ limit: "10mb" }));
-app.use(express.static(__dirname));
+// app.use(express.static(__dirname));
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
@@ -134,6 +134,47 @@ CREATE TABLE IF NOT EXISTS arena_battles (
   log TEXT NOT NULL,
   created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS auction_listings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  seller_user_id INTEGER NOT NULL,
+  seller_username TEXT NOT NULL,
+  item_type TEXT NOT NULL DEFAULT 'equip',
+  item_data TEXT NOT NULL,
+  price INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  buyer_user_id INTEGER,
+  buyer_username TEXT,
+  created_at INTEGER NOT NULL,
+  expire_at INTEGER NOT NULL DEFAULT 0,
+  sold_at INTEGER,
+  cancelled_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS beast_arena_players (
+  user_id INTEGER PRIMARY KEY,
+  username TEXT NOT NULL,
+  beast_data TEXT NOT NULL,
+  rank INTEGER NOT NULL,
+  arena_date TEXT NOT NULL DEFAULT '',
+  used INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY(user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS beast_arena_battles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  attacker_user_id INTEGER NOT NULL,
+  defender_user_id INTEGER NOT NULL,
+  attacker_username TEXT NOT NULL,
+  defender_username TEXT NOT NULL,
+  attacker_rank_before INTEGER NOT NULL,
+  defender_rank_before INTEGER NOT NULL,
+  attacker_rank_after INTEGER NOT NULL,
+  defender_rank_after INTEGER NOT NULL,
+  win INTEGER NOT NULL,
+  coin_reward INTEGER NOT NULL DEFAULT 0,
+  log TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
 `);
 
 const userColumns = db.prepare(`PRAGMA table_info(users)`).all().map(col => col.name);
@@ -153,6 +194,21 @@ if (!userColumns.includes("banned")) {
 if (!userColumns.includes("muted_until")) {
   db.exec(`ALTER TABLE users ADD COLUMN muted_until INTEGER NOT NULL DEFAULT 0`);
 }
+const auctionColumns = db.prepare(`PRAGMA table_info(auction_listings)`).all().map(col => col.name);
+
+if (!auctionColumns.includes("item_type")) {
+  db.exec(`ALTER TABLE auction_listings ADD COLUMN item_type TEXT NOT NULL DEFAULT 'equip'`);
+}
+
+if (!auctionColumns.includes("expire_at")) {
+  db.exec(`ALTER TABLE auction_listings ADD COLUMN expire_at INTEGER NOT NULL DEFAULT 0`);
+}
+db.prepare(`
+  UPDATE auction_listings
+  SET expire_at = created_at + ?
+  WHERE status = 'active'
+    AND expire_at = 0
+`).run(24 * 60 * 60 * 1000);
 
 const lastChatTime = new Map();
 
@@ -498,13 +554,15 @@ function readUserSave(username) {
 }
 
 function writeUserSave(userId, save) {
-  save.last = Date.now();
-
+  const now = Date.now();
+  save.last = now;
+  save.cloudUpdatedAt = now;
   db.prepare(`
     UPDATE users
     SET save_data = ?, save_updated_at = ?
     WHERE id = ?
-  `).run(JSON.stringify(save), Date.now(), userId);
+  `).run(JSON.stringify(save), now, userId);
+  return now;
 }
 
 function getMyGuild(userId) {
@@ -734,26 +792,26 @@ function arenaRewardByRank(rank) {
   rank = Math.max(1, Math.floor(Number(rank) || 999999));
 
   if (rank === 1) {
-    return { yb: 100000, forge: 30000, fate: 2, black: 2, god: 1, rare: 0, legend: 0 };
+    return { yb: 10000, forge: 30000, fate: 2, black: 2, god: 1, rare: 0, legend: 0 };
   }
 
   if (rank === 2) {
-    return { yb: 70000, forge: 22000, fate: 2, black: 2, god: 0, rare: 0, legend: 0 };
+    return { yb: 7000, forge: 22000, fate: 2, black: 2, god: 0, rare: 0, legend: 0 };
   }
 
   if (rank === 3) {
-    return { yb: 50000, forge: 16000, fate: 1, black: 1, god: 0, rare: 0, legend: 0 };
+    return { yb: 5000, forge: 16000, fate: 1, black: 1, god: 0, rare: 0, legend: 0 };
   }
 
   if (rank <= 10) {
-    return { yb: 30000, forge: 10000, fate: 1, black: 0, god: 0, rare: 0, legend: 3 };
+    return { yb: 3000, forge: 10000, fate: 1, black: 0, god: 0, rare: 0, legend: 3 };
   }
 
   if (rank <= 50) {
-    return { yb: 15000, forge: 5000, fate: 0, black: 0, god: 0, rare: 5, legend: 0 };
+    return { yb: 1500, forge: 5000, fate: 0, black: 0, god: 0, rare: 5, legend: 0 };
   }
 
-  return { yb: 3000, forge: 1000, fate: 0, black: 0, god: 0, rare: 0, legend: 0 };
+  return { yb: 300, forge: 1000, fate: 0, black: 0, god: 0, rare: 0, legend: 0 };
 }
 
 /* =========================
@@ -848,8 +906,11 @@ app.get("/api/save", auth, (req, res) => {
   }
 
   try {
+    const save = JSON.parse(user.save_data);
+    save.cloudUpdatedAt = user.save_updated_at || 0;
+
     res.json({
-      save: JSON.parse(user.save_data),
+      save,
       updatedAt: user.save_updated_at || 0
     });
   } catch {
@@ -862,25 +923,51 @@ app.get("/api/save", auth, (req, res) => {
 
 app.post("/api/save", auth, (req, res) => {
   const save = req.body.save;
-  const updatedAt = Math.max(0, Math.floor(Number(req.body.updatedAt) || Date.now()));
 
   if (!save || typeof save !== "object" || Array.isArray(save)) {
     return res.status(400).json({ error: "存档格式错误" });
   }
 
-  const saveText = JSON.stringify(save);
+  const current = db.prepare(`
+    SELECT save_updated_at
+    FROM users
+    WHERE id = ?
+  `).get(req.user.id);
 
-  if (saveText.length > 8 * 1024 * 1024) {
+  const serverUpdatedAt = Math.max(0, Math.floor(Number(current?.save_updated_at) || 0));
+  const clientBaseUpdatedAt = Math.max(0, Math.floor(Number(req.body.baseUpdatedAt ?? save.cloudUpdatedAt) || 0));
+
+  if (serverUpdatedAt > 0 && clientBaseUpdatedAt < serverUpdatedAt) {
+    return res.status(409).json({
+      error: "云端存档比当前本地存档更新。为避免旧存档覆盖新存档，请先读取云端存档。",
+      serverUpdatedAt,
+      clientBaseUpdatedAt
+    });
+  }
+
+  const saveTextCheck = JSON.stringify(save);
+
+  if (saveTextCheck.length > 8 * 1024 * 1024) {
     return res.status(400).json({ error: "存档太大，请先清理背包" });
   }
+
+  const now = Date.now();
+
+  save.last = now;
+  save.cloudUpdatedAt = now;
+
+  const saveText = JSON.stringify(save);
 
   db.prepare(`
     UPDATE users
     SET save_data = ?, save_updated_at = ?
     WHERE id = ?
-  `).run(saveText, updatedAt, req.user.id);
+  `).run(saveText, now, req.user.id);
 
-  res.json({ ok: true });
+  res.json({
+    ok: true,
+    updatedAt: now
+  });
 });
 
 /* =========================
@@ -1784,6 +1871,1039 @@ app.get("/api/chat/guild/list", auth, (req, res) => {
 });
 
 /* =========================
+   全服斗兽排行
+========================= */
+
+function parseBeastData(text) {
+  try {
+    const b = JSON.parse(text || "{}");
+    return b && typeof b === "object" ? b : null;
+  } catch {
+    return null;
+  }
+}
+
+function getNextBeastArenaRank() {
+  const row = db.prepare(`
+    SELECT MAX(rank) AS m
+    FROM beast_arena_players
+  `).get();
+
+  return Math.max(1, Number(row?.m || 0) + 1);
+}
+
+function getBeastArenaPlayer(userId) {
+  return db.prepare(`
+    SELECT *
+    FROM beast_arena_players
+    WHERE user_id = ?
+  `).get(userId);
+}
+
+function getBeastArenaNearbyRows(me) {
+  if (!me) return [];
+
+  if (me.rank <= 1) {
+    return db.prepare(`
+      SELECT user_id, username, beast_data, rank, updated_at
+      FROM beast_arena_players
+      WHERE rank > ?
+      ORDER BY rank ASC
+      LIMIT 5
+    `).all(me.rank);
+  }
+
+  const start = Math.max(1, me.rank - 5);
+
+  return db.prepare(`
+    SELECT user_id, username, beast_data, rank, updated_at
+    FROM beast_arena_players
+    WHERE rank >= ?
+      AND rank < ?
+    ORDER BY rank ASC
+    LIMIT 5
+  `).all(start, me.rank);
+}
+
+function beastQualityServerName(q) {
+  const names = [
+    "普通",
+    "优秀",
+    "精良",
+    "卓越",
+    "传说",
+    "神话",
+    "至臻",
+    "炫彩",
+    "神",
+    "黑",
+    "臻彩传奇"
+  ];
+
+  return names[Math.max(0, Math.min(names.length - 1, Math.floor(Number(q) || 0)))] || "普通";
+}
+
+function beastAffinityServerMult(beast) {
+  const a = Math.max(0, Math.min(100, Math.floor(Number(beast?.affinity) || 0)));
+
+  if (a >= 80) return 1.2;
+
+  return 0.6 + a / 80 * 0.6;
+}
+
+function beastServerStats(beast) {
+  const level = Math.max(1, Math.floor(Number(beast.level) || 1));
+  const q = Math.max(0, Math.floor(Number(beast.q) || 0));
+  const aptitude = Math.max(1, Math.floor(Number(beast.aptitude) || 1));
+  const affinity = beastAffinityServerMult(beast);
+  const evolve = 1 + Math.max(0, Math.floor(Number(beast.evolve) || 0)) * 0.08;
+
+  const qMult = 1 + q * 0.16;
+  const aptMult = 0.7 + aptitude / 100 * 0.8;
+  const type = beast.type || "support";
+
+  let hp = 100 + level * 18;
+  let atk = 18 + level * 4;
+  let def = 8 + level * 2.4;
+  let spd = 10 + level * 1.8;
+  let crit = 0.05 + q * 0.006 + aptitude * 0.0008;
+
+  if (type === "battle") {
+    hp *= 1.08;
+    atk *= 1.22;
+    def *= 1.05;
+    spd *= 1.05;
+    crit += 0.03;
+  } else {
+    hp *= 1.18;
+    atk *= 0.9;
+    def *= 1.16;
+    spd *= 1.08;
+  }
+
+  return {
+    hp: Math.floor(hp * qMult * aptMult * affinity * evolve),
+    atk: Math.floor(atk * qMult * aptMult * affinity * evolve),
+    def: Math.floor(def * qMult * aptMult * affinity * evolve),
+    spd: Math.floor(spd * qMult * aptMult * affinity * evolve),
+    crit: Math.min(0.45, crit * affinity)
+  };
+}
+
+function simulateServerBeastBattle(attackerBeast, defenderBeast) {
+  const a = JSON.parse(JSON.stringify(attackerBeast));
+  const b = JSON.parse(JSON.stringify(defenderBeast));
+
+  const aStats = beastServerStats(a);
+  const bStats = beastServerStats(b);
+
+  let ahp = aStats.hp;
+  let bhp = bStats.hp;
+
+  const log = [];
+
+  log.push(`【全服斗兽排行】${a.name} 挑战 ${b.name}`);
+  log.push(`挑战方：【${beastQualityServerName(a.q)}】${a.name} Lv.${a.level}，资质 ${a.aptitude || 0}，好感 ${a.affinity || 0}`);
+  log.push(`防守方：【${beastQualityServerName(b.q)}】${b.name} Lv.${b.level}，资质 ${b.aptitude || 0}，好感 ${b.affinity || 0}`);
+  log.push(`挑战方属性：生命${aStats.hp}，攻击${aStats.atk}，防御${aStats.def}，速度${aStats.spd}，暴击${(aStats.crit * 100).toFixed(1)}%`);
+  log.push(`防守方属性：生命${bStats.hp}，攻击${bStats.atk}，防御${bStats.def}，速度${bStats.spd}，暴击${(bStats.crit * 100).toFixed(1)}%`);
+
+  const first = aStats.spd >= bStats.spd ? "a" : "b";
+
+  function doAttack(attacker, defender, atkStats, defStats, attackerName, defenderName, round) {
+    let dmg = Math.max(1, Math.floor(atkStats.atk * (0.85 + Math.random() * 0.3) - defStats.def * 0.45));
+    let crit = false;
+
+    if (Math.random() < atkStats.crit) {
+      crit = true;
+      dmg = Math.floor(dmg * 1.65);
+    }
+
+    if (round % 4 === 0) {
+      dmg = Math.floor(dmg * 1.25);
+      log.push(`${attackerName} 释放主动技能【${attacker.activeSkill || "灵兽猛击"}】！`);
+    }
+
+    if (attacker.type === "battle" && Math.random() < 0.18) {
+      dmg = Math.floor(dmg * 1.18);
+      log.push(`${attackerName} 的被动【${attacker.passiveSkill || "战斗本能"}】触发，伤害提高。`);
+    }
+
+    log.push(`${attackerName} 攻击 ${defenderName}，造成 ${dmg}${crit ? " 暴击" : ""}伤害。`);
+
+    return dmg;
+  }
+
+  for (let round = 1; round <= 30; round++) {
+    log.push(`第${round}回合：`);
+
+    if (first === "a") {
+      bhp -= doAttack(a, b, aStats, bStats, "挑战方", "防守方", round);
+
+      if (bhp <= 0) {
+        log.push(`防守方 ${b.name} 倒下。`);
+        break;
+      }
+
+      ahp -= doAttack(b, a, bStats, aStats, "防守方", "挑战方", round);
+
+      if (ahp <= 0) {
+        log.push(`挑战方 ${a.name} 倒下。`);
+        break;
+      }
+    } else {
+      ahp -= doAttack(b, a, bStats, aStats, "防守方", "挑战方", round);
+
+      if (ahp <= 0) {
+        log.push(`挑战方 ${a.name} 倒下。`);
+        break;
+      }
+
+      bhp -= doAttack(a, b, aStats, bStats, "挑战方", "防守方", round);
+
+      if (bhp <= 0) {
+        log.push(`防守方 ${b.name} 倒下。`);
+        break;
+      }
+    }
+
+    if (a.type === "support" && Math.random() < 0.12) {
+      const heal = Math.floor(aStats.hp * 0.04);
+      ahp = Math.min(aStats.hp, ahp + heal);
+      log.push(`挑战方辅助被动触发，恢复 ${heal} 生命。`);
+    }
+
+    if (b.type === "support" && Math.random() < 0.12) {
+      const heal = Math.floor(bStats.hp * 0.04);
+      bhp = Math.min(bStats.hp, bhp + heal);
+      log.push(`防守方辅助被动触发，恢复 ${heal} 生命。`);
+    }
+
+    log.push(`回合结束：挑战方生命 ${Math.max(0, ahp)}/${aStats.hp}，防守方生命 ${Math.max(0, bhp)}/${bStats.hp}`);
+  }
+
+  let win = false;
+
+  if (ahp > 0 && bhp <= 0) win = true;
+  else if (ahp > 0 && bhp > 0) win = ahp >= bhp;
+
+  log.push(win ? "战斗结果：挑战方胜利！" : "战斗结果：防守方获胜。");
+
+  return {
+    win,
+    log
+  };
+}
+
+function beastCoinRewardByRank(rank, win) {
+  if (!win) return 5;
+
+  if (rank <= 3) return 120;
+  if (rank <= 10) return 90;
+  if (rank <= 50) return 60;
+  return 40;
+}
+
+app.post("/api/beast-arena/config", auth, (req, res) => {
+  const beastId = String(req.body.beastId || "").trim();
+
+  if (!beastId) {
+    return res.status(400).json({ error: "请选择灵兽" });
+  }
+
+  const result = readUserSaveById(req.user.id);
+
+  if (result.error) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  const { save } = result;
+
+  save.spiritBeasts = Array.isArray(save.spiritBeasts) ? save.spiritBeasts : [];
+
+  const beast = save.spiritBeasts.find(b => b && b.id === beastId);
+
+  if (!beast) {
+    return res.status(400).json({ error: "云存档中没有找到该灵兽，请先保存存档" });
+  }
+
+  if (!beast.appraised) {
+    return res.status(400).json({ error: "该灵兽还没有鉴定资质，无法配置斗兽排行" });
+  }
+
+  const existing = getBeastArenaPlayer(req.user.id);
+  const rank = existing ? existing.rank : getNextBeastArenaRank();
+
+  db.prepare(`
+    INSERT INTO beast_arena_players (
+      user_id,
+      username,
+      beast_data,
+      rank,
+      arena_date,
+      used,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, '', 0, ?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      username = excluded.username,
+      beast_data = excluded.beast_data,
+      updated_at = excluded.updated_at
+  `).run(
+    req.user.id,
+    req.user.username,
+    JSON.stringify(beast),
+    rank,
+    Date.now()
+  );
+
+  const me = getBeastArenaPlayer(req.user.id);
+
+  res.json({
+    ok: true,
+    message: "斗兽排行防守灵兽已配置",
+    me: {
+      username: me.username,
+      rank: me.rank,
+      beast: parseBeastData(me.beast_data)
+    }
+  });
+});
+
+app.get("/api/beast-arena/me", auth, (req, res) => {
+  const me = getBeastArenaPlayer(req.user.id);
+
+  if (!me) {
+    return res.json({
+      joined: false,
+      message: "尚未配置斗兽排行灵兽"
+    });
+  }
+
+  const d = todayKey();
+  const used = me.arena_date === d ? me.used : 0;
+
+  res.json({
+    joined: true,
+    username: me.username,
+    rank: me.rank,
+    used,
+    limit: 10,
+    beast: parseBeastData(me.beast_data)
+  });
+});
+
+app.get("/api/beast-arena/nearby", auth, (req, res) => {
+  const me = getBeastArenaPlayer(req.user.id);
+
+  if (!me) {
+    return res.status(400).json({ error: "请先配置斗兽排行灵兽" });
+  }
+
+  const rows = getBeastArenaNearbyRows(me).map(r => ({
+    userId: r.user_id,
+    username: r.username,
+    rank: r.rank,
+    beast: parseBeastData(r.beast_data),
+    updatedAt: r.updated_at
+  }));
+
+  res.json({
+    me: {
+      username: me.username,
+      rank: me.rank,
+      beast: parseBeastData(me.beast_data)
+    },
+    rows
+  });
+});
+
+app.post("/api/beast-arena/challenge", auth, (req, res) => {
+  const targetUserId = Math.max(1, Math.floor(Number(req.body.targetUserId) || 0));
+
+  if (!targetUserId) {
+    return res.status(400).json({ error: "挑战目标错误" });
+  }
+
+  if (targetUserId === req.user.id) {
+    return res.status(400).json({ error: "不能挑战自己" });
+  }
+
+  const d = todayKey();
+  let payload = null;
+
+  const tx = db.transaction(() => {
+    const attacker = getBeastArenaPlayer(req.user.id);
+
+    if (!attacker) {
+      throw new Error("请先配置斗兽排行灵兽");
+    }
+
+    if (attacker.arena_date !== d) {
+      db.prepare(`
+        UPDATE beast_arena_players
+        SET arena_date = ?, used = 0
+        WHERE user_id = ?
+      `).run(d, req.user.id);
+
+      attacker.arena_date = d;
+      attacker.used = 0;
+    }
+
+    if (attacker.used >= 10) {
+      throw new Error("今日斗兽排行挑战次数已用完");
+    }
+
+    const defender = getBeastArenaPlayer(targetUserId);
+
+    if (!defender) {
+      throw new Error("目标玩家尚未进入斗兽排行");
+    }
+
+    const nearby = getBeastArenaNearbyRows(attacker).map(r => r.user_id);
+
+    if (!nearby.includes(targetUserId)) {
+      throw new Error("只能挑战排名附近五名玩家");
+    }
+
+    const aBeast = parseBeastData(attacker.beast_data);
+    const dBeast = parseBeastData(defender.beast_data);
+
+    if (!aBeast || !dBeast) {
+      throw new Error("灵兽数据异常");
+    }
+
+    const sim = simulateServerBeastBattle(aBeast, dBeast);
+
+    const attackerRankBefore = attacker.rank;
+    const defenderRankBefore = defender.rank;
+
+    let attackerRankAfter = attackerRankBefore;
+    let defenderRankAfter = defenderRankBefore;
+
+    if (sim.win && defender.rank < attacker.rank) {
+      attackerRankAfter = defender.rank;
+      defenderRankAfter = attacker.rank;
+
+      db.prepare(`
+        UPDATE beast_arena_players
+        SET rank = ?
+        WHERE user_id = ?
+      `).run(attackerRankAfter, attacker.user_id);
+
+      db.prepare(`
+        UPDATE beast_arena_players
+        SET rank = ?
+        WHERE user_id = ?
+      `).run(defenderRankAfter, defender.user_id);
+    }
+
+    db.prepare(`
+      UPDATE beast_arena_players
+      SET used = used + 1,
+          arena_date = ?
+      WHERE user_id = ?
+    `).run(d, attacker.user_id);
+
+    const reward = beastCoinRewardByRank(attackerRankAfter, sim.win);
+
+    const result = readUserSaveById(req.user.id);
+
+    if (result.error) {
+      throw new Error(result.error);
+    }
+
+    const save = result.save;
+
+    save.beastCoins = Math.max(0, Math.floor(Number(save.beastCoins) || 0)) + reward;
+
+    writeUserSave(req.user.id, save);
+
+    const info = db.prepare(`
+      INSERT INTO beast_arena_battles (
+        attacker_user_id,
+        defender_user_id,
+        attacker_username,
+        defender_username,
+        attacker_rank_before,
+        defender_rank_before,
+        attacker_rank_after,
+        defender_rank_after,
+        win,
+        coin_reward,
+        log,
+        created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      attacker.user_id,
+      defender.user_id,
+      attacker.username,
+      defender.username,
+      attackerRankBefore,
+      defenderRankBefore,
+      attackerRankAfter,
+      defenderRankAfter,
+      sim.win ? 1 : 0,
+      reward,
+      JSON.stringify(sim.log),
+      Date.now()
+    );
+
+    payload = {
+      ok: true,
+      battleId: info.lastInsertRowid,
+      win: sim.win,
+      reward,
+      log: sim.log,
+      attackerRankBefore,
+      defenderRankBefore,
+      attackerRankAfter,
+      defenderRankAfter,
+      used: attacker.used + 1,
+      limit: 10,
+      save
+    };
+  });
+
+  try {
+    tx();
+    res.json(payload);
+  } catch (err) {
+    res.status(400).json({ error: err.message || "斗兽挑战失败" });
+  }
+});
+
+app.get("/api/beast-arena/battles", auth, (req, res) => {
+  const rows = db.prepare(`
+    SELECT *
+    FROM beast_arena_battles
+    WHERE attacker_user_id = ?
+       OR defender_user_id = ?
+    ORDER BY id DESC
+    LIMIT 20
+  `).all(req.user.id, req.user.id);
+
+  res.json(rows.map(r => ({
+    id: r.id,
+    attackerUsername: r.attacker_username,
+    defenderUsername: r.defender_username,
+    win: !!r.win,
+    reward: r.coin_reward,
+    log: (() => {
+      try {
+        return JSON.parse(r.log);
+      } catch {
+        return [];
+      }
+    })(),
+    createdAt: r.created_at,
+    attackerRankBefore: r.attacker_rank_before,
+    defenderRankBefore: r.defender_rank_before,
+    attackerRankAfter: r.attacker_rank_after,
+    defenderRankAfter: r.defender_rank_after
+  })));
+});
+
+app.post("/api/beast-arena/shop", auth, (req, res) => {
+  const type = String(req.body.type || "").trim();
+  const q = Math.max(0, Math.min(4, Math.floor(Number(req.body.q) || 0)));
+
+  if (!["ore", "herb", "hide"].includes(type)) {
+    return res.status(400).json({ error: "兑换材料类型错误" });
+  }
+
+  const costTable = [20, 40, 80, 160, 320];
+  const countTable = [10, 8, 6, 4, 2];
+
+  const cost = costTable[q];
+  const count = countTable[q];
+
+  const result = readUserSaveById(req.user.id);
+
+  if (result.error) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  const save = result.save;
+
+  save.beastCoins = Math.max(0, Math.floor(Number(save.beastCoins) || 0));
+
+  if (save.beastCoins < cost) {
+    return res.status(400).json({ error: "斗兽币不足" });
+  }
+
+  save.beastCoins -= cost;
+
+  save.materials = save.materials || {};
+  save.materials[type] = save.materials[type] || {};
+  save.materials[type][q] = Math.max(0, Math.floor(Number(save.materials[type][q]) || 0)) + count;
+
+  writeUserSave(req.user.id, save);
+
+  res.json({
+    ok: true,
+    message: `兑换成功，获得材料×${count}`,
+    save
+  });
+});
+/* =========================
+   交易行
+========================= */
+
+const AUCTION_EXPIRE_MS = 24 * 60 * 60 * 1000;
+
+function cleanExpiredAuctions() {
+  const now = Date.now();
+
+  db.prepare(`
+    UPDATE auction_listings
+    SET status = 'expired',
+        cancelled_at = ?
+    WHERE status = 'active'
+      AND expire_at > 0
+      AND expire_at <= ?
+  `).run(now, now);
+}
+
+function auctionPublicRow(row) {
+  let item = null;
+
+  try {
+    item = JSON.parse(row.item_data);
+  } catch {
+    item = null;
+  }
+
+  return {
+    id: row.id,
+    sellerUsername: row.seller_username,
+    buyerUsername: row.buyer_username,
+    itemType: row.item_type || "equip",
+    price: row.price,
+    status: row.status,
+    item,
+    createdAt: row.created_at,
+    expireAt: row.expire_at,
+    soldAt: row.sold_at,
+    cancelledAt: row.cancelled_at
+  };
+}
+
+function isItemEquipped(save, itemId) {
+  const equipped = save.equipped || {};
+  return Object.values(equipped).includes(itemId);
+}
+
+function removeAuctionItemFromSave(save, itemType, itemId) {
+  if (itemType === "equip") {
+    save.inventory = Array.isArray(save.inventory) ? save.inventory : [];
+    const item = save.inventory.find(i => i && i.id === itemId);
+
+    if (!item) return { error: "云存档中没有找到该装备，请先保存存档" };
+
+    if (!item.crafted) return { error: "只有炼器打造装备可以上架" };
+    if (item.bound || item.tradeBound) return { error: "该装备已绑定，无法上架" };
+    if (isItemEquipped(save, itemId)) return { error: "已穿戴装备不能上架" };
+
+    save.inventory = save.inventory.filter(i => i && i.id !== itemId);
+
+    return { item };
+  }
+
+  if (itemType === "pill") {
+    save.pills = Array.isArray(save.pills) ? save.pills : [];
+    const item = save.pills.find(i => i && i.id === itemId);
+
+    if (!item) return { error: "云存档中没有找到该丹药，请先保存存档" };
+
+    save.pills = save.pills.filter(i => i && i.id !== itemId);
+
+    return { item };
+  }
+
+  if (itemType === "talisman") {
+    save.talismans = Array.isArray(save.talismans) ? save.talismans : [];
+    const item = save.talismans.find(i => i && i.id === itemId);
+
+    if (!item) return { error: "云存档中没有找到该符箓，请先保存存档" };
+
+    save.talismans = save.talismans.filter(i => i && i.id !== itemId);
+
+    return { item };
+  }
+
+  if (itemType === "beast") {
+    save.spiritBeasts = Array.isArray(save.spiritBeasts) ? save.spiritBeasts : [];
+    const item = save.spiritBeasts.find(i => i && i.id === itemId);
+
+    if (!item) return { error: "云存档中没有找到该灵兽，请先保存存档" };
+    if (item.tradeBound) return { error: "该灵兽已绑定，无法上架" };
+    if (save.activeBeastId === itemId) return { error: "出战中的灵兽不能上架" };
+
+    save.spiritBeasts = save.spiritBeasts.filter(i => i && i.id !== itemId);
+
+    return { item };
+  }
+
+  if (itemType === "net") {
+    const q = Math.max(0, Math.floor(Number(itemId) || 0));
+
+    save.beastNets = save.beastNets || {};
+    save.beastNets[q] = Math.max(0, Math.floor(Number(save.beastNets[q]) || 0));
+
+    if (save.beastNets[q] <= 0) {
+      return { error: "该捕兽网数量不足" };
+    }
+
+    save.beastNets[q] -= 1;
+
+    return {
+      item: {
+        id: "net_" + q + "_" + Date.now(),
+        q,
+        name: "捕兽网",
+        count: 1
+      }
+    };
+  }
+
+  return { error: "不支持的上架类型" };
+}
+
+function addAuctionItemToSave(save, itemType, item) {
+  if (itemType === "equip") {
+    save.inventory = Array.isArray(save.inventory) ? save.inventory : [];
+    save.inventory.push(item);
+    return;
+  }
+
+  if (itemType === "pill") {
+    save.pills = Array.isArray(save.pills) ? save.pills : [];
+    save.pills.push(item);
+    return;
+  }
+
+  if (itemType === "talisman") {
+    save.talismans = Array.isArray(save.talismans) ? save.talismans : [];
+    save.talismans.push(item);
+    return;
+  }
+
+  if (itemType === "beast") {
+    save.spiritBeasts = Array.isArray(save.spiritBeasts) ? save.spiritBeasts : [];
+    save.spiritBeasts.push(item);
+    return;
+  }
+
+  if (itemType === "net") {
+    const q = Math.max(0, Math.floor(Number(item.q) || 0));
+    save.beastNets = save.beastNets || {};
+    save.beastNets[q] = Math.max(0, Math.floor(Number(save.beastNets[q]) || 0)) + 1;
+    return;
+  }
+}
+
+app.post("/api/auction/list", auth, (req, res) => {
+  cleanExpiredAuctions();
+
+  const itemId = String(req.body.itemId || "").trim();
+  const itemType = String(req.body.itemType || "equip").trim();
+  const price = Math.max(1, Math.floor(Number(req.body.price) || 0));
+
+  if (!["equip", "pill", "talisman", "beast", "net"].includes(itemType)) {
+    return res.status(400).json({ error: "上架类型错误" });
+  }
+
+  if (!itemId) {
+    return res.status(400).json({ error: "物品错误" });
+  }
+
+  if (price < 1 || price > 999999999) {
+    return res.status(400).json({ error: "价格不合法" });
+  }
+
+  const result = readUserSaveById(req.user.id);
+
+  if (result.error) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  const { save } = result;
+
+  const removed = removeAuctionItemFromSave(save, itemType, itemId);
+
+  if (removed.error) {
+    return res.status(400).json({ error: removed.error });
+  }
+
+  const item = removed.item;
+  const now = Date.now();
+
+  const tx = db.transaction(() => {
+    writeUserSave(req.user.id, save);
+
+    db.prepare(`
+      INSERT INTO auction_listings (
+        seller_user_id,
+        seller_username,
+        item_type,
+        item_data,
+        price,
+        status,
+        created_at,
+        expire_at
+      )
+      VALUES (?, ?, ?, ?, ?, 'active', ?, ?)
+    `).run(
+      req.user.id,
+      req.user.username,
+      itemType,
+      JSON.stringify(item),
+      price,
+      now,
+      now + AUCTION_EXPIRE_MS
+    );
+  });
+
+  try {
+    tx();
+
+    res.json({
+      ok: true,
+      message: "上架成功，商品将在24小时后自动过期",
+      save
+    });
+  } catch {
+    res.status(500).json({ error: "上架失败" });
+  }
+});
+
+app.get("/api/auction/listings", (req, res) => {
+  cleanExpiredAuctions();
+
+  const type = String(req.query.type || "all").trim();
+  const keyword = String(req.query.keyword || "").trim();
+
+  const rows = db.prepare(`
+    SELECT *
+    FROM auction_listings
+    WHERE status = 'active'
+    ORDER BY id DESC
+    LIMIT 100
+  `).all();
+
+  let result = rows.map(auctionPublicRow);
+
+  if (["equip", "pill", "talisman", "beast", "net"].includes(type)) {
+    result = result.filter(r => r.itemType === type);
+  }
+
+  if (keyword) {
+    result = result.filter(r => {
+      const name = String(r.item?.name || "");
+      const seller = String(r.sellerUsername || "");
+      const affix = String(r.item?.affix?.name || "");
+      return name.includes(keyword) || seller.includes(keyword) || affix.includes(keyword);
+    });
+  }
+
+  res.json(result.slice(0, 50));
+});
+
+app.get("/api/auction/my", auth, (req, res) => {
+  cleanExpiredAuctions();
+
+  const rows = db.prepare(`
+    SELECT *
+    FROM auction_listings
+    WHERE seller_user_id = ?
+      AND status = 'active'
+    ORDER BY id DESC
+    LIMIT 50
+  `).all(req.user.id);
+
+  res.json(rows.map(auctionPublicRow));
+});
+
+app.get("/api/auction/history", auth, (req, res) => {
+  cleanExpiredAuctions();
+
+  const rows = db.prepare(`
+    SELECT *
+    FROM auction_listings
+    WHERE status = 'sold'
+    ORDER BY sold_at DESC
+    LIMIT 50
+  `).all();
+
+  res.json(rows.map(auctionPublicRow));
+});
+
+app.post("/api/auction/cancel", auth, (req, res) => {
+  cleanExpiredAuctions();
+
+  const id = Math.max(1, Math.floor(Number(req.body.id) || 0));
+
+  const listing = db.prepare(`
+    SELECT *
+    FROM auction_listings
+    WHERE id = ?
+      AND status = 'active'
+  `).get(id);
+
+  if (!listing) {
+    return res.status(404).json({ error: "商品不存在或已处理" });
+  }
+
+  if (listing.seller_user_id !== req.user.id) {
+    return res.status(403).json({ error: "只能下架自己的商品" });
+  }
+
+  const result = readUserSaveById(req.user.id);
+
+  if (result.error) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  const { save } = result;
+
+  let item = null;
+
+  try {
+    item = JSON.parse(listing.item_data);
+  } catch {
+    return res.status(400).json({ error: "商品数据损坏" });
+  }
+
+  const tx = db.transaction(() => {
+    addAuctionItemToSave(save, listing.item_type || "equip", item);
+
+    writeUserSave(req.user.id, save);
+
+    db.prepare(`
+      UPDATE auction_listings
+      SET status = 'cancelled',
+          cancelled_at = ?
+      WHERE id = ?
+    `).run(Date.now(), id);
+  });
+
+  try {
+    tx();
+
+    res.json({
+      ok: true,
+      message: "下架成功，物品已返回背包",
+      save
+    });
+  } catch {
+    res.status(500).json({ error: "下架失败" });
+  }
+});
+
+app.post("/api/auction/buy", auth, (req, res) => {
+  cleanExpiredAuctions();
+
+  const id = Math.max(1, Math.floor(Number(req.body.id) || 0));
+
+  const listing = db.prepare(`
+    SELECT *
+    FROM auction_listings
+    WHERE id = ?
+      AND status = 'active'
+  `).get(id);
+
+  if (!listing) {
+    return res.status(404).json({ error: "商品不存在、已售出或已过期" });
+  }
+
+  if (listing.expire_at && listing.expire_at <= Date.now()) {
+    db.prepare(`
+      UPDATE auction_listings
+      SET status = 'expired',
+          cancelled_at = ?
+      WHERE id = ?
+    `).run(Date.now(), id);
+
+    return res.status(400).json({ error: "商品已过期" });
+  }
+
+  if (listing.seller_user_id === req.user.id) {
+    return res.status(400).json({ error: "不能购买自己上架的商品" });
+  }
+
+  const buyerResult = readUserSaveById(req.user.id);
+
+  if (buyerResult.error) {
+    return res.status(400).json({ error: buyerResult.error });
+  }
+
+  const sellerResult = readUserSaveById(listing.seller_user_id);
+
+  if (sellerResult.error) {
+    return res.status(400).json({ error: "卖家存档异常，暂时无法购买" });
+  }
+
+  const buyerSave = buyerResult.save;
+  const sellerSave = sellerResult.save;
+
+  buyerSave.yuanbao = Math.max(0, Math.floor(Number(buyerSave.yuanbao) || 0));
+  sellerSave.yuanbao = Math.max(0, Math.floor(Number(sellerSave.yuanbao) || 0));
+
+  if (buyerSave.yuanbao < listing.price) {
+    return res.status(400).json({ error: "元宝不足" });
+  }
+
+  let item = null;
+
+  try {
+    item = JSON.parse(listing.item_data);
+  } catch {
+    return res.status(400).json({ error: "商品数据损坏" });
+  }
+
+  const tax = Math.floor(listing.price * 0.08);
+  const sellerGain = listing.price - tax;
+
+  const tx = db.transaction(() => {
+    buyerSave.yuanbao -= listing.price;
+
+    addAuctionItemToSave(buyerSave, listing.item_type || "equip", item);
+
+    sellerSave.yuanbao += sellerGain;
+
+    writeUserSave(req.user.id, buyerSave);
+    writeUserSave(listing.seller_user_id, sellerSave);
+
+    db.prepare(`
+      UPDATE auction_listings
+      SET status = 'sold',
+          buyer_user_id = ?,
+          buyer_username = ?,
+          sold_at = ?
+      WHERE id = ?
+    `).run(
+      req.user.id,
+      req.user.username,
+      Date.now(),
+      id
+    );
+  });
+
+  try {
+    tx();
+
+    res.json({
+      ok: true,
+      message: `购买成功，卖家获得 ${sellerGain} 元宝，手续费 ${tax} 元宝`,
+      save: buyerSave
+    });
+  } catch {
+    res.status(500).json({ error: "购买失败" });
+  }
+});
+/* =========================
    GM 后台接口
 ========================= */
 
@@ -2068,9 +3188,10 @@ app.post("/api/gm/clear-shards", gmAuth, (req, res) => {
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "game.html"));
 });
-
+app.get("/game.html", (req, res) => {
+  res.sendFile(path.join(__dirname, "game.html"));
+});
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
   console.log("服务器已启动，端口：" + PORT);
 });

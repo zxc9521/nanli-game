@@ -90,9 +90,535 @@ const app=document.querySelector("#app"),SAVE_KEY="nanli_idle_999_forge_v1",PERM
 const slots={weapon:"武器",armor:"上衣",pants:"裤子",shoes:"鞋",helmet:"头盔",jewelry:"首饰",artifact:"伴生法器"};
 const slotKeys=Object.keys(slots);
 const qualities=[
-{name:"劣质",m:.55,c:"q0",w:4600},{name:"普通",m:1,c:"q1",w:3000},{name:"优秀",m:1.55,c:"q2",w:1500},{name:"精良",m:2.25,c:"q3",w:650},{name:"卓越",m:3.3,c:"q4",w:200},
-{name:"传说",m:5,c:"q5",w:45},{name:"神话",m:7.5,c:"q6",w:12},{name:"传奇",m:10.5,c:"q7",w:3},{name:"炫彩传说",m:14,c:"q8",w:.8},{name:"炫彩神话",m:20,c:"q9",w:.25},{name:"炫彩传奇",m:32,c:"q10",w:.05},
-{name:"臻彩传说",m:48,c:"q11",w:.015},{name:"臻彩神话",m:72,c:"q12",w:.006},{name:"臻彩传奇",m:108,c:"q13",w:.002}
+{name:"劣质",m:.7,c:"q0",w:4600},{name:"普通",m:1,c:"q1",w:3000},{name:"优秀",m:1.25,c:"q2",w:1500},{name:"精良",m:1.55,c:"q3",w:650},{name:"卓越",m:1.9,c:"q4",w:200},
+{name:"传说",m:2.4,c:"q5",w:45},{name:"神话",m:3,c:"q6",w:12},{name:"传奇",m:3.8,c:"q7",w:3},{name:"炫彩传说",m:4.8,c:"q8",w:.8},{name:"炫彩神话",m:6,c:"q9",w:.25},{name:"炫彩传奇",m:7.5,c:"q10",w:.05},
+{name:"臻彩传说",m:9.5,c:"q11",w:.015},{name:"臻彩神话",m:12,c:"q12",w:.006},{name:"臻彩传奇",m:15,c:"q13",w:.002}
+];
+const materialTypes={
+ ore:{
+  name:"矿石",
+  icon:"⛏️",
+  names:[
+   "碎星砂铁",
+   "青纹铜母",
+   "寒潭银砂",
+   "玄黄精铁",
+   "紫雷晶矿",
+   "赤阳灵铜",
+   "太阴寒铁",
+   "龙血玄钢",
+   "七曜虹晶",
+   "九霞神砂",
+   "星陨道金",
+   "混元仙铁",
+   "太初神金",
+   "鸿蒙源晶"
+  ]
+ },
+ herb:{
+  name:"草药",
+  icon:"🌿",
+  names:[
+   "止血灵芽",
+   "清心草",
+   "凝露花",
+   "月华芝",
+   "紫府灵参",
+   "赤焰朱果",
+   "冰魄雪莲",
+   "九叶龙葵",
+   "七彩神兰",
+   "太阴月桂",
+   "星河道莲",
+   "归墟魂草",
+   "太初仙藤",
+   "鸿蒙道果"
+  ]
+ },
+ hide:{
+  name:"兽皮",
+  icon:"🐾",
+  names:[
+   "灰狼残皮",
+   "青鳞兽皮",
+   "铁背熊皮",
+   "玄纹虎皮",
+   "紫电蟒皮",
+   "赤焰妖狐皮",
+   "冰魄蛟皮",
+   "龙血玄龟甲",
+   "七彩神鹿皮",
+   "九幽魔麟皮",
+   "星纹古兽皮",
+   "归墟玄鲸皮",
+   "太初天鹏羽皮",
+   "鸿蒙祖龙鳞"
+  ]
+ }
+};
+
+const professionTypes={
+ alchemist:{
+  name:"炼丹师",
+  desc:"擅长使用草药、兽皮炼制丹药。丹药可永久增加少量属性。"
+ },
+ smith:{
+  name:"炼器师",
+  desc:"擅长使用矿石、兽皮打造装备。打造装备略强于普通掉落装备。"
+ },
+ talisman:{
+  name:"符箓师",
+  desc:"擅长使用兽皮制作符箓。符箓可提供临时大量属性加成。"
+ },
+ beastmaster:{
+  name:"灵兽师",
+  desc:"擅长制作捕兽网，在灵兽幻境中捕捉灵兽。灵兽可培养升级，为主人提供战斗或资源加成。"
+ }
+};
+
+const professionRanks=[
+ "凡匠",
+ "一品",
+ "二品",
+ "三品",
+ "四品",
+ "五品",
+ "六品",
+ "七品",
+ "八品",
+ "九品"
+];
+const pillStages=[
+ {
+  id:"fan",
+  name:"凡阶",
+  needRank:1,
+  herbQ:0,
+  hideQ:0,
+  herb:3,
+  hide:1,
+  baseRate:.9,
+  exp:2,
+  names:["回春散","益气丸","凝血丹"]
+ },
+ {
+  id:"ling",
+  name:"灵阶",
+  needRank:2,
+  herbQ:1,
+  hideQ:1,
+  herb:5,
+  hide:2,
+  baseRate:.75,
+  exp:5,
+  names:["聚气丹","养元丹","洗髓丹"]
+ },
+ {
+  id:"tian",
+  name:"天阶",
+  needRank:3,
+  herbQ:2,
+  hideQ:2,
+  herb:8,
+  hide:3,
+  baseRate:.55,
+  exp:12,
+  names:["玄元丹","筑灵丹","紫府丹"]
+ },
+ {
+  id:"di",
+  name:"地阶",
+  needRank:4,
+  herbQ:3,
+  hideQ:3,
+  herb:10,
+  hide:5,
+  baseRate:.35,
+  exp:25,
+  names:["地脉丹","龙血丹","九转金丹"]
+ },
+ {
+  id:"xian",
+  name:"仙阶",
+  needRank:6,
+  herbQ:5,
+  hideQ:4,
+  herb:12,
+  hide:8,
+  baseRate:.18,
+  exp:60,
+  names:["太清玉露丹","九霞凝神丹","太乙还真丹"]
+ },
+ {
+  id:"shen",
+  name:"神阶",
+  needRank:8,
+  herbQ:6,
+  hideQ:5,
+  herb:15,
+  hide:10,
+  baseRate:.08,
+  exp:150,
+  names:["星河道丹","太初神魄丹","鸿蒙造化丹"]
+ }
+];
+
+const pillGrades=[
+ {id:"low",name:"下等",mult:.7,index:0},
+ {id:"mid",name:"中等",mult:1,index:1},
+ {id:"high",name:"上等",mult:1.45,index:2}
+];
+
+const pillStatTypes={
+ power:"永久战力",
+ exp:"永久经验",
+ yb:"永久元宝",
+ gear:"永久掉率",
+ kill:"永久击杀速度"
+};
+
+const professionExpNeed=[0,100,300,800,2000,5000,12000,30000,80000,200000];
+const smithStages=[
+ {
+  id:"fan",
+  name:"凡器",
+  needRank:1,
+  oreQ:0,
+  hideQ:0,
+  ore:4,
+  hide:1,
+  baseRate:.92,
+  exp:2,
+  minQ:0,
+  maxQ:2,
+  prefix:["百炼","青锋","铁骨"]
+ },
+ {
+  id:"ling",
+  name:"灵器",
+  needRank:2,
+  oreQ:1,
+  hideQ:1,
+  ore:6,
+  hide:2,
+  baseRate:.78,
+  exp:6,
+  minQ:1,
+  maxQ:4,
+  prefix:["凝灵","寒月","流光"]
+ },
+ {
+  id:"tian",
+  name:"天器",
+  needRank:3,
+  oreQ:2,
+  hideQ:2,
+  ore:9,
+  hide:3,
+  baseRate:.58,
+  exp:14,
+  minQ:2,
+  maxQ:6,
+  prefix:["玄天","破军","紫霄"]
+ },
+ {
+  id:"di",
+  name:"地器",
+  needRank:4,
+  oreQ:3,
+  hideQ:3,
+  ore:12,
+  hide:5,
+  baseRate:.4,
+  exp:30,
+  minQ:3,
+  maxQ:8,
+  prefix:["镇岳","龙象","地煞"]
+ },
+ {
+  id:"xian",
+  name:"仙器",
+  needRank:6,
+  oreQ:5,
+  hideQ:4,
+  ore:15,
+  hide:8,
+  baseRate:.22,
+  exp:70,
+  minQ:5,
+  maxQ:10,
+  prefix:["太清","九霞","凌霄"]
+ },
+ {
+  id:"shen",
+  name:"神器",
+  needRank:8,
+  oreQ:6,
+  hideQ:5,
+  ore:20,
+  hide:10,
+  baseRate:.1,
+  exp:180,
+  minQ:6,
+  maxQ:13,
+  prefix:["太初","星河","鸿蒙"]
+ }
+];
+
+const smithSlotNames={
+ weapon:["问道剑","破军枪","星陨刃","青冥刀","雷纹戟","斩月弓"],
+ armor:["玄鳞铠","流云衣","镇岳甲","星纹袍","龙血战衣","太清法袍"],
+ pants:["踏云护腿","玄铁战裤","流光腿甲","龙纹下裳","星河护腿"],
+ shoes:["追风履","踏星靴","流云靴","九霄战靴","缩地灵履"],
+ helmet:["紫霄冠","玄纹盔","星辰冠","太清玉冠","龙鳞战盔"],
+ jewelry:["归墟戒","问心佩","星河坠","太初珠","九霞灵环"]
+};
+const craftedAffixes=[
+ {id:"jingqingjue",name:"晶清诀",desc:"装备掉率 +6%，经验收益 +4%",e:{gear:.06,exp:.04},w:18},
+ {id:"jinguangnumu",name:"金刚怒目",desc:"战力 +8%，击杀速度 +4%",e:{power:.08,kill:.04},w:16},
+ {id:"luohanjinzhong",name:"罗汉金钟",desc:"战力 +5%，元宝收益 +5%",e:{power:.05,yb:.05},w:16},
+ {id:"canghaimingyue",name:"沧海明月",desc:"经验收益 +8%",e:{exp:.08},w:18},
+ {id:"fengqiyunyang",name:"风起云扬",desc:"击杀速度 +8%",e:{kill:.08},w:18},
+ {id:"qixingjuyuan",name:"七星聚元",desc:"元宝收益 +8%",e:{yb:.08},w:18},
+ {id:"tiangangpojun",name:"天罡破军",desc:"战力 +12%，装备掉率 +3%",e:{power:.12,gear:.03},w:8},
+ {id:"wanfa归一",name:"万法归一",desc:"战力 +10%，经验 +6%，元宝 +6%",e:{power:.10,exp:.06,yb:.06},w:5}
+];
+
+function rollCraftedAffix(q){
+ // 只有炼器装备有小概率出现蓝字，品质越高概率越高
+ const chance=Math.min(.16,.025+q*.008);
+
+ if(Math.random()>chance)return null;
+
+ const total=craftedAffixes.reduce((s,a)=>s+a.w,0);
+ let r=Math.random()*total;
+
+ for(const a of craftedAffixes){
+  r-=a.w;
+  if(r<=0)return JSON.parse(JSON.stringify(a));
+ }
+
+ return null;
+}
+
+function craftedAffixText(item){
+ if(!item||!item.affix)return "";
+ return `蓝字：${item.affix.name}｜${item.affix.desc}`;
+}
+const talismanStages=[
+ {
+  id:"fan",
+  name:"凡阶",
+  needRank:1,
+  hideQ:0,
+  hide:3,
+  baseRate:.92,
+  exp:2,
+  power:.08,
+  names:["疾行符","护身符","聚气符"]
+ },
+ {
+  id:"ling",
+  name:"灵阶",
+  needRank:2,
+  hideQ:1,
+  hide:5,
+  baseRate:.78,
+  exp:6,
+  power:.14,
+  names:["金甲符","御风符","燃血符"]
+ },
+ {
+  id:"tian",
+  name:"天阶",
+  needRank:3,
+  hideQ:2,
+  hide:8,
+  baseRate:.58,
+  exp:14,
+  power:.22,
+  names:["雷火符","玄冰符","镇魂符"]
+ },
+ {
+  id:"di",
+  name:"地阶",
+  needRank:4,
+  hideQ:3,
+  hide:10,
+  baseRate:.4,
+  exp:30,
+  power:.32,
+  names:["地煞符","龙象符","山岳符"]
+ },
+ {
+  id:"xian",
+  name:"仙阶",
+  needRank:6,
+  hideQ:4,
+  hide:14,
+  baseRate:.22,
+  exp:70,
+  power:.45,
+  names:["太清神行符","九霄雷诏符","仙灵护体符"]
+ },
+ {
+  id:"shen",
+  name:"神阶",
+  needRank:8,
+  hideQ:5,
+  hide:18,
+  baseRate:.1,
+  exp:180,
+  power:.65,
+  names:["星河镇界符","太初敕令符","鸿蒙万法符"]
+ }
+];
+
+const talismanTypes={
+ power:{name:"战力符",effect:"战力"},
+ exp:{name:"聚灵符",effect:"经验收益"},
+ yb:{name:"聚宝符",effect:"元宝收益"},
+ gear:{name:"寻宝符",effect:"装备掉率"},
+ kill:{name:"疾杀符",effect:"击杀速度"}
+};
+const beastQualities=[
+ {id:"normal",name:"普通",c:"pq1",rank:1},
+ {id:"good",name:"优秀",c:"pq2",rank:2},
+ {id:"rare",name:"精良",c:"pq3",rank:3},
+ {id:"epic",name:"卓越",c:"pq4",rank:4},
+ {id:"legend",name:"传说",c:"pq5",rank:5},
+ {id:"myth",name:"神话",c:"pq6",rank:6},
+ {id:"supreme",name:"至臻",c:"pq7",rank:7},
+ {id:"chroma",name:"炫彩",c:"pq8",rank:8},
+ {id:"god",name:"神",c:"pq9",rank:9},
+ {id:"black",name:"黑",c:"pq10",rank:10},
+ {id:"zenlegend",name:"臻彩传奇",c:"pq11",rank:11}
+];
+
+const beastTypes={
+ battle:"战斗型",
+ support:"辅助型"
+};
+
+const spiritBeastPool=[
+ {name:"焰尾灵狐",type:"support",skill:"狐火祈福",passive:"灵狐采药"},
+ {name:"青岚风鹿",type:"support",skill:"风息引路",passive:"山林寻宝"},
+ {name:"玄甲岩龟",type:"battle",skill:"玄甲冲撞",passive:"岩甲护主"},
+ {name:"雷纹幼虎",type:"battle",skill:"雷爪裂空",passive:"虎威震慑"},
+ {name:"月影灵猫",type:"support",skill:"月影潜行",passive:"夜行拾珍"},
+ {name:"赤羽火雀",type:"battle",skill:"赤羽流火",passive:"火羽战意"},
+ {name:"冰魄雪狼",type:"battle",skill:"冰魄撕咬",passive:"寒息破敌"},
+ {name:"碧水灵鲤",type:"support",skill:"碧波润泽",passive:"水泽聚财"},
+ {name:"紫电灵蛇",type:"battle",skill:"紫电缠身",passive:"电纹疾杀"},
+ {name:"金角灵犀",type:"battle",skill:"金角破阵",passive:"厚土之力"},
+ {name:"云梦蝶灵",type:"support",skill:"梦蝶迷踪",passive:"梦境悟道"},
+ {name:"墨羽夜鸦",type:"support",skill:"夜鸦窥天",passive:"黑羽探宝"},
+ {name:"星纹小麒麟",type:"battle",skill:"星纹踏阵",passive:"瑞兽护主"},
+ {name:"琉璃玉兔",type:"support",skill:"玉兔捣药",passive:"丹材亲和"},
+ {name:"九叶灵鹿",type:"support",skill:"九叶回春",passive:"草木共鸣"},
+ {name:"赤鳞炎蜥",type:"battle",skill:"炎鳞爆裂",passive:"烈焰战意"},
+ {name:"寒霜羽鹰",type:"battle",skill:"霜羽穿云",passive:"鹰眼猎杀"},
+ {name:"玄水灵蚌",type:"support",skill:"玄水结珠",passive:"聚宝灵珠"},
+ {name:"苍雷角马",type:"battle",skill:"苍雷践踏",passive:"奔雷疾行"},
+ {name:"银月狐仙幼体",type:"support",skill:"银月祝祷",passive:"月华增益"},
+ {name:"幽冥骨豹",type:"battle",skill:"幽冥扑杀",passive:"暗影战魂"},
+ {name:"青木灵猿",type:"support",skill:"青木采果",passive:"灵材搜寻"},
+ {name:"赤金龙鲤",type:"battle",skill:"龙鲤跃渊",passive:"龙血沸腾"},
+ {name:"太阴雪狐",type:"support",skill:"太阴凝露",passive:"寒月寻药"},
+ {name:"紫晶玄蜂",type:"support",skill:"玄蜂采蜜",passive:"灵蜜聚财"},
+ {name:"黑曜魔狼",type:"battle",skill:"黑曜裂魂",passive:"魔狼凶性"},
+ {name:"七曜虹雀",type:"support",skill:"七曜赐福",passive:"虹光寻宝"},
+ {name:"星河灵鲸",type:"support",skill:"星河潮汐",passive:"星潮聚灵"},
+ {name:"归墟玄鲲",type:"battle",skill:"归墟吞浪",passive:"巨鲲威压"},
+ {name:"太初灵龙",type:"battle",skill:"太初龙息",passive:"龙威护主"},
+ {name:"鸿蒙幼凤",type:"support",skill:"鸿蒙凤鸣",passive:"凤鸣赐福"},
+ {name:"混元天麟",type:"battle",skill:"混元踏天",passive:"天麟战血"},
+
+ {name:"霜角灵羊",type:"support",skill:"霜角祝福",passive:"寒草感知"},
+ {name:"赤瞳火狐",type:"battle",skill:"赤瞳焚影",passive:"狐火战意"},
+ {name:"碧眼灵貂",type:"support",skill:"碧眼寻珍",passive:"灵材嗅觉"},
+ {name:"玄羽鸦王",type:"battle",skill:"玄羽风刃",passive:"暗羽杀意"},
+ {name:"白玉灵象",type:"support",skill:"玉象赐福",passive:"厚德载物"},
+ {name:"金纹战熊",type:"battle",skill:"金纹重击",passive:"战熊怒吼"},
+ {name:"青鳞蛟蛇",type:"battle",skill:"青鳞绞杀",passive:"蛟鳞护主"},
+ {name:"紫翼灵蝠",type:"support",skill:"紫翼探路",passive:"夜行寻宝"},
+ {name:"火云狮",type:"battle",skill:"火云咆哮",passive:"狮王威势"},
+ {name:"灵泉玉蟾",type:"support",skill:"玉蟾吐露",passive:"灵泉聚财"},
+
+ {name:"雷霆战鹰",type:"battle",skill:"雷霆俯冲",passive:"鹰击长空"},
+ {name:"风语灵雀",type:"support",skill:"风语传音",passive:"风息引财"},
+ {name:"厚土玄牛",type:"battle",skill:"厚土践踏",passive:"玄牛蛮力"},
+ {name:"银鬃天马",type:"support",skill:"天马行空",passive:"云路捷行"},
+ {name:"血月狼王",type:"battle",skill:"血月撕裂",passive:"狼王嗜战"},
+ {name:"青莲灵鹿",type:"support",skill:"青莲净心",passive:"草木眷顾"},
+ {name:"炎晶火龟",type:"battle",skill:"炎晶爆甲",passive:"火甲反震"},
+ {name:"冰璃灵狐",type:"support",skill:"冰璃幻梦",passive:"雪原寻珍"},
+ {name:"星尾灵狐",type:"support",skill:"星尾赐运",passive:"星光聚宝"},
+ {name:"龙鳞战虎",type:"battle",skill:"龙鳞虎啸",passive:"龙虎战魂"},
+
+ {name:"玄冥幽蛇",type:"battle",skill:"玄冥毒息",passive:"幽毒侵骨"},
+ {name:"赤霞凤鸟",type:"support",skill:"赤霞凤鸣",passive:"霞光赐福"},
+ {name:"白泽幼灵",type:"support",skill:"白泽识宝",passive:"万物通灵"},
+ {name:"青丘灵狐",type:"support",skill:"青丘幻术",passive:"狐族灵慧"},
+ {name:"裂山魔猿",type:"battle",skill:"裂山重拳",passive:"魔猿狂力"},
+ {name:"沧澜鲸灵",type:"support",skill:"沧澜潮涌",passive:"潮汐聚财"},
+ {name:"紫霄雷兽",type:"battle",skill:"紫霄雷罚",passive:"雷兽战血"},
+ {name:"玉衡星鹿",type:"support",skill:"玉衡星引",passive:"星辉悟道"},
+ {name:"苍炎狼灵",type:"battle",skill:"苍炎扑杀",passive:"炎狼凶意"},
+ {name:"玄冰凤雏",type:"support",skill:"玄冰凤舞",passive:"冰羽赐福"},
+
+ {name:"九幽魂猫",type:"support",skill:"九幽潜影",passive:"幽影拾珍"},
+ {name:"镇岳神犀",type:"battle",skill:"镇岳冲阵",passive:"神犀厚甲"},
+ {name:"碧落灵蝶",type:"support",skill:"碧落蝶舞",passive:"蝶梦修行"},
+ {name:"赤雷龙驹",type:"battle",skill:"赤雷奔袭",passive:"雷驹疾杀"},
+ {name:"银霜雪豹",type:"battle",skill:"银霜突袭",passive:"雪豹敏锐"},
+ {name:"金焰孔雀",type:"support",skill:"金焰开屏",passive:"孔雀赐运"},
+ {name:"太虚灵螭",type:"battle",skill:"太虚龙吟",passive:"螭龙血脉"},
+ {name:"归云仙鹤",type:"support",skill:"归云清鸣",passive:"仙鹤悟道"},
+ {name:"混沌幼兽",type:"battle",skill:"混沌撕界",passive:"混沌战意"},
+ {name:"鸿蒙灵蝶",type:"support",skill:"鸿蒙蝶梦",passive:"万灵赐福"}
+];
+
+const beastRealms=[
+ ["初生灵兽幻境",1000,6,22,2],
+ ["山林灵兽幻境",8000,10,25,4],
+ ["玄岩灵兽幻境",30000,16,28,6],
+ ["风雷灵兽幻境",90000,24,31,8],
+ ["月华灵兽幻境",250000,35,34,10],
+ ["龙血灵兽幻境",700000,50,38,13],
+ ["星河灵兽幻境",1800000,70,42,16],
+ ["归墟灵兽幻境",4500000,95,46,20],
+ ["太初灵兽幻境",10000000,130,50,24],
+ ["鸿蒙灵兽幻境",25000000,180,55,28]
+].map(x=>({name:x[0],req:x[1],kpm:x[2],mat:x[3],tier:x[4]}));
+const BANK_RATE=100; // 官方钱庄固定比例：1元宝 = 100铜币
+
+const marketBasePrices=[
+ 10,20,40,80,160,
+ 400,900,2000,5000,12000,
+ 30000,80000,200000,500000
+];
+
+const merchantNames=[
+ "青衣行商",
+ "黑风货郎",
+ "万宝阁伙计",
+ "云游药商",
+ "玄铁矿贩",
+ "百兽皮商",
+ "南荒游商",
+ "北境客商",
+ "归墟商人",
+ "星河摆渡人"
+];
+
+const blackMerchantNames=[
+ "蒙面黑商",
+ "鬼市牙人",
+ "夜半货郎",
+ "无证钱庄老板",
+ "黑风寨账房",
+ "归墟走私客"
 ];
 const partnerQual={
 normal:{name:"普通",c:"pq1",rank:1},good:{name:"优秀",c:"pq2",rank:2},rare:{name:"精良",c:"pq3",rank:3},epic:{name:"卓越",c:"pq4",rank:4},legend:{name:"传说",c:"pq5",rank:5},
@@ -289,17 +815,77 @@ const arenaSkills=[
  }
 ];
 const funnyEvents=["南黎挂机睡着了，怪物排队把经验放在脚边。","背包太满开始抗议，南黎冷静地打开整理。","VIP副本掉出万能碎片，门口保安说这是新福利。","风油大喊别打了，但副本次数还有。","丁文霞路过战场，顺手把怪物写进日志。","铁匠铺宣布：元宝别来，强化只认锻造石。"];
-const YUANBAO_GAIN_RATE=0.5;
+const YUANBAO_GAIN_RATE=0.12;
 
 let S=load(),lastRender=0;
 
 function fresh(){
  const weapon=newEquip("weapon",1,1),armor=newEquip("armor",1,1);
- return{tab:"home",level:1,exp:0,yuanbao:0,forgeStones:0,guildToken:0,gift:false,compGift:false,doubleExpPills:0,tripleExpPills:0,fiveExpPills:0,tenExpPills:0,expBuffUntil:0,expBuffMult:1,doubleExpUntil:0,vipExp:0,vipTrialLow:0,vipTrialUntil:0,mapType:"main",map:0,unlockedMain:0,bossKilled:{},bossDate:"",bossUsed:{},fengyouDate:"",fengyouUsed:0,killFloat:0,inventory:[weapon,armor],equipped:{weapon:weapon.id,armor:armor.id,pants:null,shoes:null,helmet:null,jewelry:null,artifact:null},partners:{},carried:[],showAllPartners:false,universalShards:{normal:0,good:0,rare:0,epic:0,legend:0,myth:0,supreme:0,chroma:0,god:0,black:0,zenlegend:0}
+ return{balanceVersion:2,tab:"home",level:1,exp:0,yuanbao:0,copper:0,market:{nextRefresh:0,merchants:[],blackMerchant:null},marketBlackUntil:0,materials:{ore:{},herb:{},hide:{}},profession:{type:"",rank:1,exp:0,chosenRebirth:0},pills:[],talismans:[],activeTalismans:{},beastNets:{},spiritBeasts:[],activeBeastId:"",beastEncounter:null,beastBattleLogs:[],beastCoins:0,permStats:{power:0,exp:0,yb:0,gear:0,kill:0},pills:[],permStats:{power:0,exp:0,yb:0,gear:0,kill:0},forgeStones:0,guildToken:0,gift:false,compGift:false,doubleExpPills:0,tripleExpPills:0,fiveExpPills:0,tenExpPills:0,expBuffUntil:0,expBuffMult:1,doubleExpUntil:0,vipExp:0,vipTrialLow:0,vipTrialUntil:0,mapType:"main",map:0,unlockedMain:0,bossKilled:{},bossDate:"",bossUsed:{},fengyouDate:"",fengyouUsed:0,killFloat:0,inventory:[weapon,armor],equipped:{weapon:weapon.id,armor:armor.id,pants:null,shoes:null,helmet:null,jewelry:null,artifact:null},partners:{},carried:[],showAllPartners:false,universalShards:{normal:0,good:0,rare:0,epic:0,legend:0,myth:0,supreme:0,chroma:0,god:0,black:0,zenlegend:0}
 ,logs:["欢迎来到南黎文字挂机传。"],tasks:[],taskDate:"",vipGifts:{},vipGiftVersion:2,partnerDraws:0,partnerLegendPity:0,partnerShanyuPity:0,equipDraws:0,equipLegendaryPity:0,equipColorPity:0,autoBreakBlue:false,autoBreakQuality:3,dropBreakQuality:-1,hideKillLog:false,last:Date.now(),quickDate:"",quickUsed:0,stats:{kills:0,boss:0},rankingRewardDate:"",rankingRewardRank:0,antiAddiction:false,antiHour:"",antiSeconds:0,rebirth:0,fateUnlocked:false,fateId:"",fateRerollStones:0,arenaSkills:[],arenaDate:"",arenaUsed:0,arenaRewardDate:"",arenaLogs:[]};
 }
 function normalize(data){
  const base=fresh(),r=Object.assign(base,data||{});
+r.copper=Math.max(0,Math.floor(Number(r.copper)||0));
+r.market=(typeof r.market==="object"&&r.market)?r.market:{nextRefresh:0,merchants:[],blackMerchant:null};
+r.market.nextRefresh=Math.max(0,Math.floor(Number(r.market.nextRefresh)||0));
+r.market.merchants=Array.isArray(r.market.merchants)?r.market.merchants:[];
+r.market.blackMerchant=r.market.blackMerchant||null;
+r.marketBlackUntil=Math.max(0,Math.floor(Number(r.marketBlackUntil)||0));
+r.materials=r.materials||{};
+for(const type of ["ore","herb","hide"]){
+ r.materials[type]=r.materials[type]||{};
+ for(let i=0;i<qualities.length;i++){
+  r.materials[type][i]=Math.max(0,Math.floor(Number(r.materials[type][i])||0));
+ }
+}
+r.profession=Object.assign({type:"",rank:1,exp:0,chosenRebirth:0},r.profession||{});
+if(!professionTypes[r.profession.type])r.profession.type="";
+r.profession.rank=Math.max(1,Math.min(9,Math.floor(Number(r.profession.rank)||1)));
+r.profession.exp=Math.max(0,Math.floor(Number(r.profession.exp)||0));
+r.profession.chosenRebirth=Math.max(0,Math.floor(Number(r.profession.chosenRebirth)||0));
+r.pills=Array.isArray(r.pills)?r.pills.slice(0,300):[];
+r.talismans=Array.isArray(r.talismans)?r.talismans.slice(0,300):[];
+r.activeTalismans=(typeof r.activeTalismans==="object"&&r.activeTalismans)?r.activeTalismans:{};
+for(const k of ["power","exp","yb","gear","kill"]){
+ if(r.activeTalismans[k]){
+  r.activeTalismans[k].value=Number(r.activeTalismans[k].value)||0;
+  r.activeTalismans[k].until=Math.max(0,Math.floor(Number(r.activeTalismans[k].until)||0));
+ }
+}
+r.beastNets=(typeof r.beastNets==="object"&&r.beastNets)?r.beastNets:{};
+for(let i=0;i<qualities.length;i++){
+ r.beastNets[i]=Math.max(0,Math.floor(Number(r.beastNets[i])||0));
+}
+
+r.spiritBeasts=Array.isArray(r.spiritBeasts)?r.spiritBeasts.slice(0,200):[];
+r.spiritBeasts=r.spiritBeasts.map(b=>Object.assign({
+ id:makeId(),
+ name:"未知灵兽",
+ q:0,
+ type:"support",
+ level:1,
+ exp:0,
+ affinity:0,
+ evolve:0,
+ tradeBound:false,
+ appraised:false,
+ aptitude:0,
+ beastStats:null,
+ activeSkill:"未知主动",
+ passiveSkill:"未知被动",
+ caughtAt:Date.now()
+},b));
+
+r.activeBeastId=r.activeBeastId||"";
+r.beastEncounter=r.beastEncounter||null;
+r.beastBattleLogs=Array.isArray(r.beastBattleLogs)?r.beastBattleLogs.slice(0,50):[];
+r.beastCoins=Math.max(0,Math.floor(Number(r.beastCoins)||0));
+r.permStats=Object.assign({power:0,exp:0,yb:0,gear:0,kill:0},r.permStats||{});
+for(const k of ["power","exp","yb","gear","kill"]){
+ r.permStats[k]=Math.max(0,Number(r.permStats[k])||0);
+}
+ if(data && data.balanceVersion===undefined)r.balanceVersion=0;
  r.equipped=Object.assign(base.equipped,r.equipped||{});r.bossKilled=r.bossKilled||{};r.stats=Object.assign({kills:0,boss:0},r.stats||{});r.unlockedMain=Number.isFinite(r.unlockedMain)?r.unlockedMain:Math.min(r.map||0,maps.length-1);
  r.forgeStones=r.forgeStones||0;
 r.guildToken=r.guildToken||0;r.compGift=!!r.compGift;r.partners=r.partners||{};r.carried=r.carried||[];r.logs=r.logs||[];r.vipTrialLow=r.vipTrialLow||0;r.vipTrialUntil=r.vipTrialUntil||0;r.tripleExpPills=r.tripleExpPills||0;r.fiveExpPills=r.fiveExpPills||0;r.tenExpPills=r.tenExpPills||0;r.expBuffUntil=r.expBuffUntil||0;r.expBuffMult=r.expBuffMult||1;r.tasks=r.tasks||[];r.taskDate=r.taskDate||"";r.showAllPartners=!!r.showAllPartners;
@@ -342,16 +928,1610 @@ function equipById(id){return S.inventory.find(i=>i.id===id)}
 function equippedIds(){return new Set(Object.values(S.equipped).filter(Boolean))}
 function equippedList(){return Object.values(S.equipped).map(equipById).filter(Boolean)}
 function artifactTier(){return Math.max(1,Math.floor(S.level/10)+1)}
-function equipPower(i){if(i&&i.autoTier)i.tier=artifactTier();return Math.floor(i.base*qualities[i.q].m*(1.12+i.lv*.135))}
+function craftedEquipTier(item){
+ const stageBonus={
+  fan:1,
+  ling:3,
+  tian:5,
+  di:7,
+  xian:10,
+  shen:13
+ };
+
+ const bonus=stageBonus[item?.craftedStage]||1;
+ return Math.max(item.tier||1,Math.min(60,Math.floor(S.level/10)+bonus));
+}
+
+function equipPower(i){
+ if(i&&i.autoTier)i.tier=artifactTier();
+
+ if(i&&i.craftedAutoTier){
+  i.tier=craftedEquipTier(i);
+ }
+
+ const enhanceMult=1.05+Math.sqrt(Math.max(0,i.lv||0))*.18;
+ return Math.floor(i.base*qualities[i.q].m*enhanceMult);
+}
 function equipLuck(i){if(i&&i.autoTier)i.tier=artifactTier();return i.slot==="jewelry"?Math.floor(i.luck*qualities[i.q].m*(1+i.lv*.08)):0}
 function totalLuck(){return equippedList().reduce((s,i)=>s+equipLuck(i),0)}
 function basePower(){return 80+Math.floor(25*Math.pow(S.level,1.45))}
 function starMultiplier(star){return 1+(star-1)*.22}
+function materialName(type,q){
+ const t=materialTypes[type];
+ if(!t)return "未知材料";
+ return t.names[q]||`${qualities[q]?.name||"未知"}${t.name}`;
+}
+function materialIcon(type){
+ return materialTypes[type]?.icon||"";
+}
+function addMaterial(type,q,n=1){
+ if(!S.materials)S.materials={ore:{},herb:{},hide:{}};
+ if(!S.materials[type])S.materials[type]={};
+ q=Math.max(0,Math.min(qualities.length-1,Math.floor(Number(q)||0)));
+ S.materials[type][q]=(S.materials[type][q]||0)+Math.max(1,Math.floor(Number(n)||1));
+}
+function materialCount(type,q){
+ return Math.max(0,Math.floor(Number(S.materials?.[type]?.[q])||0));
+}
+function rollMaterialType(){
+ const arr=["ore","herb","hide"];
+ return arr[Math.floor(Math.random()*arr.length)];
+}
+function maxMaterialQualityByTier(tier){
+ tier=Math.max(1,Math.floor(Number(tier)||1));
+ if(tier>=28)return 13;
+ if(tier>=26)return 12;
+ if(tier>=24)return 11;
+ if(tier>=22)return 10;
+ if(tier>=20)return 9;
+ if(tier>=18)return 8;
+ if(tier>=16)return 7;
+ if(tier>=13)return 6;
+ if(tier>=10)return 5;
+ if(tier>=8)return 4;
+ if(tier>=6)return 3;
+ if(tier>=4)return 2;
+ if(tier>=2)return 1;
+ return 0;
+}
+function rollMaterialQuality(tier){
+ const maxQ=maxMaterialQualityByTier(tier);
+ const pool=qualities
+  .map((q,i)=>({index:i,weight:q.w}))
+  .filter(x=>x.index<=maxQ);
+ let total=pool.reduce((s,i)=>s+i.weight,0);
+ let r=Math.random()*total;
+ for(const item of pool){
+  r-=item.weight;
+  if(r<=0)return item.index;
+ }
+ return 0;
+}
+function grantMaterialDrops(kills,map){
+ if(S.mapType!=="main")return;
+ if(kills<=0)return;
+ const result={ore:{},herb:{},hide:{}};
+ for(const type of ["ore","herb","hide"]){
+  const raw=kills*0.08;
+  let count=Math.floor(raw)+(Math.random()<raw%1?1:0);
+  count=Math.min(count,40);
+  for(let i=0;i<count;i++){
+   const q=rollMaterialQuality(map.tier);
+   addMaterial(type,q,1);
+   result[type][q]=(result[type][q]||0)+1;
+  }
+ }
+ const texts=[];
+ for(const type of ["ore","herb","hide"]){
+  for(const [q,n] of Object.entries(result[type])){
+   if(n>0){
+    texts.push(`${materialIcon(type)}${materialName(type,Number(q))}×${n}`);
+   }
+  }
+ }
+ if(texts.length){
+  log(`主世界采集获得：${texts.join("、")}。`);
+ }
+}
+function beastQualityName(q){
+ const b=beastQualities[q]||beastQualities[0];
+ return b.name;
+}
+
+function beastQualityClass(q){
+ return beastQualities[q]?.c||"pq1";
+}
+
+function rollBeastQuality(tier){
+ tier=Math.max(1,Math.floor(Number(tier)||1));
+
+ let maxQ=0;
+ if(tier>=28)maxQ=10;
+ else if(tier>=24)maxQ=9;
+ else if(tier>=20)maxQ=8;
+ else if(tier>=16)maxQ=7;
+ else if(tier>=13)maxQ=6;
+ else if(tier>=10)maxQ=5;
+ else if(tier>=8)maxQ=4;
+ else if(tier>=6)maxQ=3;
+ else if(tier>=4)maxQ=2;
+ else if(tier>=2)maxQ=1;
+
+ const weights=[5000,2600,1200,520,180,60,20,8,3,1,.3];
+ const pool=[];
+ for(let i=0;i<=maxQ;i++){
+  pool.push({q:i,w:weights[i]||1});
+ }
+
+ let total=pool.reduce((s,x)=>s+x.w,0);
+ let r=Math.random()*total;
+
+ for(const item of pool){
+  r-=item.w;
+  if(r<=0)return item.q;
+ }
+
+ return 0;
+}
+
+function createBeastEncounter(map){
+ const base=spiritBeastPool[Math.floor(Math.random()*spiritBeastPool.length)];
+ const q=rollBeastQuality(map.tier);
+
+ return {
+  id:makeId(),
+  name:base.name,
+  type:base.type,
+  q,
+  level:1,
+  exp:0,
+  activeSkill:base.skill,
+  passiveSkill:base.passive,
+  encounterAt:Date.now()
+ };
+}
+
+function grantBeastRealmDrops(kills,map){
+ if(S.mapType!=="beast")return;
+ if(kills<=0)return;
+
+ const result={ore:{},herb:{},hide:{}};
+
+ for(const type of ["ore","herb","hide"]){
+  const raw=kills*0.12;
+  let count=Math.floor(raw)+(Math.random()<raw%1?1:0);
+  count=Math.min(count,60);
+
+  for(let i=0;i<count;i++){
+   const q=rollMaterialQuality(map.tier);
+   addMaterial(type,q,1);
+   result[type][q]=(result[type][q]||0)+1;
+  }
+ }
+
+ const texts=[];
+
+ for(const type of ["ore","herb","hide"]){
+  for(const [q,n] of Object.entries(result[type])){
+   if(n>0){
+    texts.push(`${materialIcon(type)}${materialName(type,Number(q))}×${n}`);
+   }
+  }
+ }
+
+ if(texts.length){
+  log(`灵兽幻境获得材料：${texts.join("、")}。`);
+ }
+
+ if(!S.beastEncounter && Math.random()<0.5){
+  S.beastEncounter=createBeastEncounter(map);
+  log(`你在灵兽幻境中遭遇了【${beastQualityName(S.beastEncounter.q)}】${S.beastEncounter.name}！可前往灵兽页使用捕兽网尝试捕捉。`);
+ }
+}
+function professionName(){
+ return professionTypes[S.profession?.type]?.name||"未选择";
+}
+function professionRankName(){
+ const r=Math.max(1,Math.min(9,Math.floor(Number(S.profession?.rank)||1)));
+ return professionRanks[r]||`${r}品`;
+}
+function canChooseProfession(){
+ return (S.rebirth||0)>0 && (!S.profession || (S.profession.chosenRebirth||0)<(S.rebirth||0));
+}
+function chooseProfession(type){
+ if(!professionTypes[type]){
+  log("职业类型错误。");
+  return;
+ }
+ if((S.rebirth||0)<=0){
+  log("需要至少完成1次转生后，才能选择生活职业。");
+  return;
+ }
+ if(!canChooseProfession()){
+  log("本次转生已经选择过职业，需要下次转生后才能重新选择。");
+  return;
+ }
+ S.profession=S.profession||{type:"",rank:1,exp:0,chosenRebirth:0};
+ S.profession.type=type;
+ S.profession.chosenRebirth=S.rebirth||0;
+ log(`你本次转生选择了生活职业【${professionTypes[type].name}】。下次转生后才能重新选择。`);
+ render();
+}
+function beastNetName(q){
+ return `${qualities[q]?.name||"未知"}捕兽网`;
+}
+
+function beastNetCount(q){
+ return Math.max(0,Math.floor(Number(S.beastNets?.[q])||0));
+}
+
+function craftBeastNet(q){
+ q=Math.max(0,Math.min(qualities.length-1,Math.floor(Number(q)||0)));
+
+ if(S.profession?.type!=="beastmaster"){
+  log("你当前不是灵兽师，无法制作捕兽网。");
+  return;
+ }
+
+ const needOre=2+q;
+ const needHide=3+q;
+
+ if(materialCount("ore",q)<needOre){
+  log(`${materialName("ore",q)}不足，需要 ${needOre} 个。`);
+  return;
+ }
+
+ if(materialCount("hide",q)<needHide){
+  log(`${materialName("hide",q)}不足，需要 ${needHide} 个。`);
+  return;
+ }
+
+ S.materials.ore[q]-=needOre;
+ S.materials.hide[q]-=needHide;
+
+ S.beastNets=S.beastNets||{};
+ S.beastNets[q]=(S.beastNets[q]||0)+1;
+
+ addProfessionExp(2+q*2);
+
+ log(`制作成功：${beastNetName(q)}×1。捕兽网必定制作成功。`);
+ render();
+}
+
+function beastCaptureChance(netQ,beastQ){
+ netQ=Math.floor(Number(netQ)||0);
+ beastQ=Math.floor(Number(beastQ)||0);
+
+ let chance=.08+(netQ-beastQ)*.035+netQ*.006;
+
+ if(beastQ>=7)chance-=.08;
+ if(beastQ>=9)chance-=.12;
+
+ return Math.max(.01,Math.min(.65,chance));
+}
+
+function captureSpiritBeast(netQ){
+ netQ=Math.max(0,Math.min(qualities.length-1,Math.floor(Number(netQ)||0)));
+
+ if(!S.beastEncounter){
+  log("当前没有遭遇灵兽。请前往灵兽幻境挂机。");
+  return;
+ }
+
+ if(beastNetCount(netQ)<=0){
+  log(`${beastNetName(netQ)}数量不足。`);
+  return;
+ }
+
+ S.beastNets[netQ]--;
+
+ const beast=S.beastEncounter;
+ const chance=beastCaptureChance(netQ,beast.q);
+ const ok=Math.random()<chance;
+
+ if(!ok){
+  log(`捕捉失败！你使用了${beastNetName(netQ)}，但【${beast.name}】逃走了。成功率 ${(chance*100).toFixed(1)}%。`);
+  S.beastEncounter=null;
+  render();
+  return;
+ }
+
+ const owned={
+  id:makeId(),
+  name:beast.name,
+  q:beast.q,
+  type:beast.type,
+  level:1,
+  exp:0,
+  affinity:0,
+  evolve:0,
+  tradeBound:false,
+  appraised:false,
+  aptitude:0,
+  beastStats:null,
+  activeSkill:beast.activeSkill,
+  passiveSkill:beast.passiveSkill,
+  caughtAt:Date.now()
+ };
+
+ S.spiritBeasts=S.spiritBeasts||[];
+ S.spiritBeasts.unshift(owned);
+
+ S.beastEncounter=null;
+
+ log(`捕捉成功！获得【${beastQualityName(owned.q)}】${owned.name}。`);
+ render();
+}
+
+function beastExpNeed(level){
+ return Math.floor(20+level*level*1.5);
+}
+
+function beastPowerMult(beast){
+ const qRank=(beast.q||0)+1;
+ return 1+qRank*.06+beast.level*.006;
+}
+
+function beastEffectText(beast){
+ if(!beast)return "";
+ const scale=beastPowerMult(beast)*beastAffinityMult(beast);
+ if(beast.type==="battle"){
+  return `战力 +${(scale*4).toFixed(1)}%，击杀速度 +${(scale*1.5).toFixed(1)}%`;
+ }
+ return `经验 +${(scale*2).toFixed(1)}%，元宝 +${(scale*2).toFixed(1)}%，掉率 +${(scale*1).toFixed(1)}%`;
+}
+
+function spiritBeastById(id){
+ return (S.spiritBeasts||[]).find(b=>b.id===id)||null;
+}
+
+function setActiveSpiritBeast(id){
+ const beast=spiritBeastById(id);
+ if(!beast){
+  log("灵兽不存在。");
+  return;
+ }
+ S.activeBeastId=id;
+ if(!beast.tradeBound){
+  beast.tradeBound=true;
+  log(`已出战灵兽：【${beast.name}】。该灵兽已绑定，无法上架交易行。`);
+ }else{
+  log(`已出战灵兽：【${beast.name}】。`);
+ }
+ render();
+}
+
+function feedSpiritBeast(id,type){
+ const beast=spiritBeastById(id);
+
+ if(!beast){
+  log("灵兽不存在。");
+  return;
+ }
+
+ if(beast.level>=100){
+  log(`${beast.name} 已达到100级。`);
+  return;
+ }
+
+ if(!["ore","herb","hide"].includes(type)){
+  log("喂食材料类型错误。");
+  return;
+ }
+
+ let q=-1;
+
+ for(let i=0;i<qualities.length;i++){
+  if(materialCount(type,i)>0){
+   q=i;
+   break;
+  }
+ }
+
+ if(q<0){
+  log(`没有可用于喂食的${materialTypes[type].name}。`);
+  return;
+ }
+
+ S.materials[type][q]--;
+
+ const gain=10+q*8;
+
+ beast.exp=(beast.exp||0)+gain;
+
+ while(beast.level<100 && beast.exp>=beastExpNeed(beast.level)){
+  beast.exp-=beastExpNeed(beast.level);
+  beast.level++;
+ }
+
+ log(`喂食 ${materialName(type,q)}，${beast.name} 获得 ${gain} 经验，当前等级 ${beast.level}/100。`);
+ render();
+}
+
+function activeSpiritBeast(){
+ return spiritBeastById(S.activeBeastId);
+}
+function beastAffinityMult(beast){
+ const a=Math.max(0,Math.min(100,Math.floor(Number(beast?.affinity)||0)));
+
+ if(a>=80)return 1.2;
+
+ return +(0.6+a/80*.6).toFixed(3);
+}
+
+function feedBeastAffinity(id){
+ const beast=spiritBeastById(id);
+
+ if(!beast){
+  log("灵兽不存在。");
+  return;
+ }
+
+ if((beast.affinity||0)>=100){
+  log(`${beast.name} 好感度已满。`);
+  return;
+ }
+
+ const cost=100+Math.floor((beast.affinity||0)*8)+((beast.q||0)*50);
+
+ if(S.yuanbao<cost){
+  log(`元宝不足，本次提升好感度需要 ${fmt(cost)} 元宝。`);
+  return;
+ }
+
+ S.yuanbao-=cost;
+
+ const gain=1+Math.floor(Math.random()*3);
+ beast.affinity=Math.min(100,(beast.affinity||0)+gain);
+
+ log(`你花费 ${fmt(cost)} 元宝喂养 ${beast.name}，好感度 +${gain}，当前 ${beast.affinity}/100。`);
+ render();
+}
+
+function evolveSpiritBeast(id){
+ const beast=spiritBeastById(id);
+
+ if(!beast){
+  log("灵兽不存在。");
+  return;
+ }
+
+ if(beast.level<100){
+  log(`${beast.name} 需要达到100级才能进化。`);
+  return;
+ }
+
+ if((beast.q||0)>=beastQualities.length-1){
+  log(`${beast.name} 已是最高品质，无法继续进化。`);
+  return;
+ }
+
+ const q=beast.q||0;
+ const needOre=10+q*5;
+ const needHerb=10+q*5;
+ const needHide=10+q*5;
+
+ if(materialCount("ore",q)<needOre){
+  log(`${materialName("ore",q)}不足，进化需要 ${needOre} 个。`);
+  return;
+ }
+
+ if(materialCount("herb",q)<needHerb){
+  log(`${materialName("herb",q)}不足，进化需要 ${needHerb} 个。`);
+  return;
+ }
+
+ if(materialCount("hide",q)<needHide){
+  log(`${materialName("hide",q)}不足，进化需要 ${needHide} 个。`);
+  return;
+ }
+
+ S.materials.ore[q]-=needOre;
+ S.materials.herb[q]-=needHerb;
+ S.materials.hide[q]-=needHide;
+
+ beast.q++;
+ beast.level=1;
+ beast.exp=0;
+ beast.evolve=(beast.evolve||0)+1;
+ beast.name=`进化·${beast.name}`;
+
+ log(`进化成功！${beast.name} 品质提升为【${beastQualityName(beast.q)}】，等级重置为1级。`);
+ render();
+}
+
+function beastTradeStateText(beast){
+ if(beast.tradeBound)return "已绑定，无法上架交易行";
+ return "未绑定，可上架交易行";
+}
+function beastAptitudeName(v){
+ v=Math.floor(Number(v)||0);
+
+ if(v>=95)return "天命";
+ if(v>=85)return "绝品";
+ if(v>=70)return "上品";
+ if(v>=50)return "中品";
+ if(v>=30)return "下品";
+ return "凡品";
+}
+
+function beastAptitudeClass(v){
+ v=Math.floor(Number(v)||0);
+
+ if(v>=95)return "pq11";
+ if(v>=85)return "pq9";
+ if(v>=70)return "pq7";
+ if(v>=50)return "pq5";
+ if(v>=30)return "pq3";
+ return "pq1";
+}
+
+function rollBeastAptitude(q){
+ q=Math.max(0,Math.floor(Number(q)||0));
+
+ let base=20+q*5;
+ let roll=Math.floor(Math.random()*45);
+
+ if(Math.random()<0.08+q*.01){
+  roll+=Math.floor(Math.random()*25);
+ }
+
+ return Math.max(1,Math.min(100,base+roll));
+}
+
+function calcBeastStats(beast){
+ const level=Math.max(1,Math.floor(Number(beast.level)||1));
+ const q=Math.max(0,Math.floor(Number(beast.q)||0));
+ const aptitude=Math.max(1,Math.floor(Number(beast.aptitude)||1));
+ const affinity=beastAffinityMult(beast);
+ const evolve=1+(Math.max(0,Math.floor(Number(beast.evolve)||0))*.08);
+
+ const qMult=1+q*.16;
+ const aptMult=.7+aptitude/100*.8;
+ const type=beast.type||"support";
+
+ let hp=100+level*18;
+ let atk=18+level*4;
+ let def=8+level*2.4;
+ let spd=10+level*1.8;
+ let crit=.05+q*.006+aptitude*.0008;
+
+ if(type==="battle"){
+  hp*=1.08;
+  atk*=1.22;
+  def*=1.05;
+  spd*=1.05;
+  crit+=.03;
+ }else{
+  hp*=1.18;
+  atk*=.9;
+  def*=1.16;
+  spd*=1.08;
+ }
+
+ hp=Math.floor(hp*qMult*aptMult*affinity*evolve);
+ atk=Math.floor(atk*qMult*aptMult*affinity*evolve);
+ def=Math.floor(def*qMult*aptMult*affinity*evolve);
+ spd=Math.floor(spd*qMult*aptMult*affinity*evolve);
+ crit=Math.min(.45,crit*affinity);
+
+ return {
+  hp,
+  atk,
+  def,
+  spd,
+  crit:+crit.toFixed(4)
+ };
+}
+
+function appraiseSpiritBeast(id){
+ const beast=spiritBeastById(id);
+
+ if(!beast){
+  log("灵兽不存在。");
+  return;
+ }
+
+ if(beast.appraised){
+  log(`${beast.name} 已经鉴定过资质，不能重复鉴定。`);
+  return;
+ }
+
+ beast.aptitude=rollBeastAptitude(beast.q||0);
+ beast.appraised=true;
+ beast.beastStats=calcBeastStats(beast);
+
+ log(`鉴定完成！${beast.name} 资质为【${beastAptitudeName(beast.aptitude)}】(${beast.aptitude})。`);
+ render();
+}
+
+function refreshBeastStats(beast){
+ if(!beast)return null;
+
+ if(!beast.appraised){
+  return null;
+ }
+
+ beast.beastStats=calcBeastStats(beast);
+ return beast.beastStats;
+}
+
+function beastStatsText(beast){
+ if(!beast||!beast.appraised){
+  return "未鉴定";
+ }
+
+ const s=refreshBeastStats(beast);
+
+ return `生命 ${fmt(s.hp)}｜攻击 ${fmt(s.atk)}｜防御 ${fmt(s.def)}｜速度 ${fmt(s.spd)}｜暴击率 ${(s.crit*100).toFixed(1)}%`;
+}
+
+function makeBeastArenaEnemy(myBeast){
+ const base=spiritBeastPool[Math.floor(Math.random()*spiritBeastPool.length)];
+ const q=Math.max(0,Math.min(beastQualities.length-1,(myBeast.q||0)+(Math.random()<.35?1:Math.random()<.35?-1:0)));
+ const level=Math.max(1,Math.min(100,(myBeast.level||1)+Math.floor(Math.random()*11)-5));
+ const aptitude=rollBeastAptitude(q);
+
+ const enemy={
+  id:makeId(),
+  name:base.name,
+  q,
+  type:base.type,
+  level,
+  exp:0,
+  affinity:Math.floor(Math.random()*80),
+  evolve:Math.max(0,Math.floor(Number(myBeast.evolve)||0)+(Math.random()<.3?1:0)),
+  tradeBound:true,
+  appraised:true,
+  aptitude,
+  activeSkill:base.skill,
+  passiveSkill:base.passive,
+  caughtAt:Date.now()
+ };
+
+ enemy.beastStats=calcBeastStats(enemy);
+
+ return enemy;
+}
+
+function beastBattleSkillText(beast){
+ if(!beast)return "";
+ return `${beast.activeSkill} / ${beast.passiveSkill}`;
+}
+
+function simulateBeastBattle(myBeast){
+ if(!myBeast){
+  return {ok:false,error:"请选择灵兽"};
+ }
+
+ if(!myBeast.appraised){
+  return {ok:false,error:"该灵兽还未鉴定资质，无法进入斗兽场"};
+ }
+
+ const enemy=makeBeastArenaEnemy(myBeast);
+
+ const a=JSON.parse(JSON.stringify(myBeast));
+ const b=JSON.parse(JSON.stringify(enemy));
+
+ a.beastStats=calcBeastStats(a);
+ b.beastStats=calcBeastStats(b);
+
+ let ahp=a.beastStats.hp;
+ let bhp=b.beastStats.hp;
+
+ const logLines=[];
+
+ logLines.push(`【斗兽场】${a.name} 对战 ${b.name}`);
+ logLines.push(`己方：${beastQualityName(a.q)} ${a.name} Lv.${a.level}，资质【${beastAptitudeName(a.aptitude)}】${a.aptitude}`);
+ logLines.push(`敌方：${beastQualityName(b.q)} ${b.name} Lv.${b.level}，资质【${beastAptitudeName(b.aptitude)}】${b.aptitude}`);
+ logLines.push(`己方属性：生命${a.beastStats.hp}，攻击${a.beastStats.atk}，防御${a.beastStats.def}，速度${a.beastStats.spd}，暴击${(a.beastStats.crit*100).toFixed(1)}%`);
+ logLines.push(`敌方属性：生命${b.beastStats.hp}，攻击${b.beastStats.atk}，防御${b.beastStats.def}，速度${b.beastStats.spd}，暴击${(b.beastStats.crit*100).toFixed(1)}%`);
+ logLines.push(`己方技能：${beastBattleSkillText(a)}`);
+ logLines.push(`敌方技能：${beastBattleSkillText(b)}`);
+
+ const first=a.beastStats.spd>=b.beastStats.spd?"a":"b";
+
+ function attackOne(attacker,defender,attackerName,defenderName,round){
+  const atk=attacker.beastStats.atk;
+  const def=defender.beastStats.def;
+  let dmg=Math.max(1,Math.floor(atk*(0.85+Math.random()*0.3)-def*.45));
+  let crit=false;
+
+  if(Math.random()<attacker.beastStats.crit){
+   crit=true;
+   dmg=Math.floor(dmg*1.65);
+  }
+
+  if(round%4===0){
+   dmg=Math.floor(dmg*1.25);
+   logLines.push(`${attackerName} 施展主动技能【${attacker.activeSkill}】，威势大涨！`);
+  }
+
+  if(attacker.type==="battle" && Math.random()<.18){
+   dmg=Math.floor(dmg*1.18);
+   logLines.push(`${attackerName} 的战斗本能触发，被动【${attacker.passiveSkill}】增强了伤害。`);
+  }
+
+  if(attacker.type==="support" && Math.random()<.16){
+   const heal=Math.floor(attacker.beastStats.hp*.06);
+   if(attackerName==="己方"){
+    ahp=Math.min(attacker.beastStats.hp,ahp+heal);
+   }else{
+    bhp=Math.min(attacker.beastStats.hp,bhp+heal);
+   }
+   logLines.push(`${attackerName} 的辅助被动【${attacker.passiveSkill}】触发，恢复 ${heal} 生命。`);
+  }
+
+  logLines.push(`${attackerName} 攻击 ${defenderName}，造成 ${dmg}${crit?" 暴击":""}伤害。`);
+
+  return dmg;
+ }
+
+ for(let round=1;round<=30;round++){
+  logLines.push(`第${round}回合：`);
+
+  if(first==="a"){
+   bhp-=attackOne(a,b,"己方", "敌方", round);
+   if(bhp<=0){
+    logLines.push(`敌方 ${b.name} 倒下。`);
+    break;
+   }
+
+   ahp-=attackOne(b,a,"敌方", "己方", round);
+   if(ahp<=0){
+    logLines.push(`己方 ${a.name} 倒下。`);
+    break;
+   }
+  }else{
+   ahp-=attackOne(b,a,"敌方", "己方", round);
+   if(ahp<=0){
+    logLines.push(`己方 ${a.name} 倒下。`);
+    break;
+   }
+
+   bhp-=attackOne(a,b,"己方", "敌方", round);
+   if(bhp<=0){
+    logLines.push(`敌方 ${b.name} 倒下。`);
+    break;
+   }
+  }
+
+  logLines.push(`回合结束：己方生命 ${Math.max(0,ahp)} / ${a.beastStats.hp}，敌方生命 ${Math.max(0,bhp)} / ${b.beastStats.hp}`);
+ }
+
+ let win=false;
+
+ if(ahp>0 && bhp<=0)win=true;
+ else if(ahp>0 && bhp>0)win=ahp>=bhp;
+
+ logLines.push(win?"战斗结果：己方胜利！":"战斗结果：己方失败。");
+
+ return {
+  ok:true,
+  win,
+  enemy,
+  log:logLines
+ };
+}
+
+function challengeBeastArena(id){
+ const beast=spiritBeastById(id);
+
+ if(!beast){
+  log("灵兽不存在。");
+  return;
+ }
+
+ if(!beast.appraised){
+  log("该灵兽还未鉴定资质，无法进入斗兽场。");
+  render();
+  return;
+ }
+
+ const result=simulateBeastBattle(beast);
+
+ if(!result.ok){
+  log(result.error||"斗兽场挑战失败。");
+  render();
+  return;
+ }
+
+ S.beastBattleLogs=S.beastBattleLogs||[];
+ S.beastBattleLogs.unshift({
+  id:makeId(),
+  time:Date.now(),
+  win:result.win,
+  beastName:beast.name,
+  enemyName:result.enemy.name,
+  log:result.log
+ });
+
+ S.beastBattleLogs=S.beastBattleLogs.slice(0,50);
+
+ if(result.win){
+  const gain=20+Math.floor((beast.q||0)*8+(beast.level||1)*0.5);
+  beast.exp=(beast.exp||0)+gain;
+
+  while(beast.level<100 && beast.exp>=beastExpNeed(beast.level)){
+   beast.exp-=beastExpNeed(beast.level);
+   beast.level++;
+  }
+
+  log(`斗兽场胜利！${beast.name} 获得 ${gain} 灵兽经验。`);
+ }else{
+  log(`斗兽场失败，${beast.name} 获得少量磨炼经验。`);
+  beast.exp=(beast.exp||0)+5;
+ }
+
+ refreshBeastStats(beast);
+ render();
+}
+function pillStageObject(id){
+ return pillStages.find(x=>x.id===id)||null;
+}
+
+function pillGradeObject(id){
+ return pillGrades.find(x=>x.id===id)||null;
+}
+
+function pillFullName(stageId,gradeId){
+ const s=pillStageObject(stageId);
+ const g=pillGradeObject(gradeId);
+ if(!s||!g)return "未知丹药";
+ return `${s.name}${g.name}·${s.names[g.index]}`;
+}
+
+function pillSuccessRate(stage){
+ const rank=Math.max(1,Math.floor(Number(S.profession?.rank)||1));
+ return Math.min(.95,stage.baseRate+(rank-1)*.03);
+}
+
+function randomPillStat(){
+ const arr=["power","exp","yb","gear","kill"];
+ return arr[Math.floor(Math.random()*arr.length)];
+}
+
+function pillEffectValue(stageId,gradeId,stat){
+ const s=pillStageObject(stageId);
+ const g=pillGradeObject(gradeId);
+ if(!s||!g)return 0;
+
+ const stageIndex=pillStages.findIndex(x=>x.id===stageId);
+ const base=stageIndex+1;
+
+ if(stat==="power"){
+  return Math.max(1,Math.floor(base*3*g.mult));
+ }
+
+ if(stat==="exp"){
+  return +(base*.001*g.mult).toFixed(4);
+ }
+
+ if(stat==="yb"){
+  return +(base*.001*g.mult).toFixed(4);
+ }
+
+ if(stat==="gear"){
+  return +(base*.0006*g.mult).toFixed(4);
+ }
+
+ if(stat==="kill"){
+  return +(base*.0008*g.mult).toFixed(4);
+ }
+
+ return 0;
+}
+
+function addProfessionExp(amount){
+ S.profession=S.profession||{type:"",rank:1,exp:0,chosenRebirth:0};
+ S.profession.exp+=Math.max(0,Math.floor(Number(amount)||0));
+
+ while(S.profession.rank<9 && S.profession.exp>=professionExpNeed[S.profession.rank]){
+  S.profession.exp-=professionExpNeed[S.profession.rank];
+  S.profession.rank++;
+  log(`生活职业品阶提升为【${professionRankName()}】！`);
+ }
+}
+
+function makePill(stageId,gradeId){
+ const stat=randomPillStat();
+ const value=pillEffectValue(stageId,gradeId,stat);
+
+ return {
+  id:makeId(),
+  stage:stageId,
+  grade:gradeId,
+  name:pillFullName(stageId,gradeId),
+  stat,
+  value,
+  createdAt:Date.now()
+ };
+}
+
+function refinePill(stageId){
+ const stage=pillStageObject(stageId);
+
+ if(!stage){
+  log("丹方不存在。");
+  return;
+ }
+
+ if(S.profession?.type!=="alchemist"){
+  log("你当前不是炼丹师，无法炼丹。");
+  return;
+ }
+
+ const rank=Math.max(1,Math.floor(Number(S.profession?.rank)||1));
+
+ if(rank<stage.needRank){
+  log(`职业品阶不足，炼制${stage.name}丹药需要【${professionRanks[stage.needRank]}】。`);
+  return;
+ }
+
+ if(materialCount("herb",stage.herbQ)<stage.herb){
+  log(`${materialName("herb",stage.herbQ)}不足，需要 ${stage.herb} 个。`);
+  return;
+ }
+
+ if(materialCount("hide",stage.hideQ)<stage.hide){
+  log(`${materialName("hide",stage.hideQ)}不足，需要 ${stage.hide} 个。`);
+  return;
+ }
+
+ S.materials.herb[stage.herbQ]-=stage.herb;
+ S.materials.hide[stage.hideQ]-=stage.hide;
+
+ const rate=pillSuccessRate(stage);
+ const ok=Math.random()<rate;
+
+ addProfessionExp(stage.exp);
+
+ if(!ok){
+  log(`炼制${stage.name}丹药失败，获得职业经验 ${stage.exp}。`);
+  render();
+  return;
+ }
+
+ let grade="low";
+ const r=Math.random();
+
+ if(r<.16+rank*.015){
+  grade="high";
+ }else if(r<.5+rank*.02){
+  grade="mid";
+ }
+
+ const pill=makePill(stage.id,grade);
+ S.pills=S.pills||[];
+ S.pills.unshift(pill);
+ S.pills=S.pills.slice(0,300);
+
+ log(`炼丹成功！获得【${pill.name}】，效果：${pillEffectText(pill)}。职业经验 +${stage.exp}。`);
+ render();
+}
+
+function pillEffectText(pill){
+ if(!pill)return "";
+ const name=pillStatTypes[pill.stat]||pill.stat;
+
+ if(pill.stat==="power"){
+  return `${name} +${fmt(pill.value)}`;
+ }
+
+ return `${name} +${(pill.value*100).toFixed(2)}%`;
+}
+
+function usePillItem(id){
+ const pill=(S.pills||[]).find(x=>x.id===id);
+
+ if(!pill){
+  log("丹药不存在。");
+  return;
+ }
+
+ S.permStats=S.permStats||{power:0,exp:0,yb:0,gear:0,kill:0};
+ S.permStats[pill.stat]=(Number(S.permStats[pill.stat])||0)+Number(pill.value||0);
+
+ S.pills=S.pills.filter(x=>x.id!==id);
+
+ log(`服用【${pill.name}】，永久获得：${pillEffectText(pill)}。`);
+ render();
+}
+function smithStageObject(id){
+ return smithStages.find(x=>x.id===id)||null;
+}
+
+function smithSuccessRate(stage){
+ const rank=Math.max(1,Math.floor(Number(S.profession?.rank)||1));
+ return Math.min(.95,stage.baseRate+(rank-1)*.035);
+}
+
+function rollSmithQuality(stage){
+ const rank=Math.max(1,Math.floor(Number(S.profession?.rank)||1));
+ const maxQ=Math.min(qualities.length-1,stage.maxQ+Math.floor(rank/4));
+ const minQ=Math.max(0,stage.minQ);
+
+ const pool=[];
+
+ for(let q=minQ;q<=maxQ;q++){
+  let weight=qualities[q].w;
+
+  if(q>=stage.maxQ)weight*=0.35;
+  if(q>=8)weight*=0.2;
+  if(q>=11)weight*=0.08;
+
+  weight*=1+rank*.08;
+
+  pool.push({q,weight});
+ }
+
+ let total=pool.reduce((s,i)=>s+i.weight,0);
+ let r=Math.random()*total;
+
+ for(const item of pool){
+  r-=item.weight;
+  if(r<=0)return item.q;
+ }
+
+ return minQ;
+}
+
+function craftedEquipName(stage,slot,q){
+ const prefixes=stage.prefix||["炼器"];
+ const prefix=prefixes[Math.floor(Math.random()*prefixes.length)];
+ const names=smithSlotNames[slot]||["无名器"];
+ const body=names[Math.floor(Math.random()*names.length)];
+ const maker=(typeof Online!=="undefined"&&Online.username)?Online.username:"南黎";
+
+ return `炼器·${maker}打造的${prefix}${body}`;
+}
+
+function craftEquip(stageId,slot){
+ const stage=smithStageObject(stageId);
+
+ if(!stage){
+  log("炼器图谱不存在。");
+  return;
+ }
+
+ if(S.profession?.type!=="smith"){
+  log("你当前不是炼器师，无法炼器。");
+  return;
+ }
+
+ if(!["weapon","armor","pants","shoes","helmet","jewelry"].includes(slot)){
+  log("打造部位错误。");
+  return;
+ }
+
+ const rank=Math.max(1,Math.floor(Number(S.profession?.rank)||1));
+
+ if(rank<stage.needRank){
+  log(`职业品阶不足，打造${stage.name}需要【${professionRanks[stage.needRank]}】。`);
+  return;
+ }
+
+ if(materialCount("ore",stage.oreQ)<stage.ore){
+  log(`${materialName("ore",stage.oreQ)}不足，需要 ${stage.ore} 个。`);
+  return;
+ }
+
+ if(materialCount("hide",stage.hideQ)<stage.hide){
+  log(`${materialName("hide",stage.hideQ)}不足，需要 ${stage.hide} 个。`);
+  return;
+ }
+
+ S.materials.ore[stage.oreQ]-=stage.ore;
+ S.materials.hide[stage.hideQ]-=stage.hide;
+
+ const rate=smithSuccessRate(stage);
+ const ok=Math.random()<rate;
+
+ addProfessionExp(stage.exp);
+
+ if(!ok){
+  log(`打造${stage.name}失败，获得职业经验 ${stage.exp}。`);
+  render();
+  return;
+ }
+
+ const q=rollSmithQuality(stage);
+const tier=Math.max(1,Math.min(60,Math.floor(S.level/10)+(stage.needRank*2)));
+const item=newEquip(slot,tier,q);
+
+ item.name=craftedEquipName(stage,slot,q);
+item.crafted=true;
+item.craftedBy=(typeof Online!=="undefined"&&Online.username)?Online.username:"南黎";
+item.craftedStage=stage.id;
+item.craftedAutoTier=true;
+item.tradeBound=false;
+item.affix=rollCraftedAffix(q);
+
+ // 炼器装备基础属性略高于普通掉落装备
+ const boost=1.08+Math.random()*0.10+rank*0.006;
+ item.base=Math.floor(item.base*boost);
+
+ if(item.slot==="jewelry"){
+  item.luck=Math.floor((item.luck||0)*(1.05+rank*.01));
+ }
+
+ S.inventory.push(item);
+
+log(`炼器成功！获得【${qualities[q].name}】${item.name}${item.affix?`，出现蓝字【${item.affix.name}】`:""}。该装备未穿戴前可上架交易行，穿戴后绑定。职业经验 +${stage.exp}。`);
+ render();
+}
+function marketBasePrice(q){
+ q=Math.max(0,Math.min(qualities.length-1,Math.floor(Number(q)||0)));
+ return marketBasePrices[q]||10;
+}
+
+function marketBlocked(){
+ return (S.marketBlackUntil||0)>Date.now();
+}
+
+function marketBlockText(){
+ if(!marketBlocked())return "";
+ const sec=Math.ceil((S.marketBlackUntil-Date.now())/1000);
+ const min=Math.floor(sec/60);
+ const s=sec%60;
+ return `${min}分${s}秒`;
+}
+
+function randomMarketQuality(){
+ const maxQ=Math.min(qualities.length-1,Math.max(2,Math.floor((S.unlockedMain||0)/3)+2));
+ const pool=[];
+ for(let q=0;q<=maxQ;q++){
+  pool.push({q,weight:qualities[q].w});
+ }
+ let total=pool.reduce((s,i)=>s+i.weight,0);
+ let r=Math.random()*total;
+ for(const item of pool){
+  r-=item.weight;
+  if(r<=0)return item.q;
+ }
+ return 0;
+}
+
+function makeMerchant(){
+ const matTypes=["ore","herb","hide"];
+ const matType=matTypes[Math.floor(Math.random()*matTypes.length)];
+ const q=randomMarketQuality();
+ const action=Math.random()<0.5?"buy":"sell"; 
+ // buy = 商人收购玩家材料
+ // sell = 商人出售材料给玩家
+
+ const base=marketBasePrice(q);
+ let price=base;
+
+ if(action==="buy"){
+  price=Math.floor(base*(0.65+Math.random()*0.75)); // 收购价：0.65~1.4倍
+ }else{
+  price=Math.floor(base*(1.15+Math.random()*1.25)); // 出售价：1.15~2.4倍
+ }
+
+ const stock=Math.floor(3+Math.random()*18);
+
+ return {
+  id:makeId(),
+  name:merchantNames[Math.floor(Math.random()*merchantNames.length)],
+  action,
+  matType,
+  q,
+  price:Math.max(1,price),
+  stock
+ };
+}
+
+function makeBlackMerchant(){
+ if(Math.random()>0.45)return null;
+
+ const mode=Math.random()<0.5?"yb2copper":"copper2yb";
+ const name=blackMerchantNames[Math.floor(Math.random()*blackMerchantNames.length)];
+
+ if(mode==="yb2copper"){
+  const yb=[10,50,100,300,500][Math.floor(Math.random()*5)];
+  const rate=Math.floor(140+Math.random()*90); // 黑商更划算：1元宝=140~230铜币
+  return {
+   id:makeId(),
+   name,
+   mode,
+   yuanbao:yb,
+   copper:yb*rate,
+   desc:`用 ${yb} 元宝兑换 ${yb*rate} 铜币`
+  };
+ }
+
+ const yb=[10,50,100,300,500][Math.floor(Math.random()*5)];
+ const rate=Math.floor(65+Math.random()*25); // 黑商更划算：65~90铜币=1元宝
+ return {
+  id:makeId(),
+  name,
+  mode,
+  yuanbao:yb,
+  copper:yb*rate,
+  desc:`用 ${yb*rate} 铜币兑换 ${yb} 元宝`
+ };
+}
+
+function refreshMarket(force=false){
+ S.market=S.market||{nextRefresh:0,merchants:[],blackMerchant:null};
+
+ if(!force && S.market.nextRefresh>Date.now() && S.market.merchants?.length){
+  return;
+ }
+
+ S.market.merchants=[makeMerchant(),makeMerchant(),makeMerchant()];
+ S.market.blackMerchant=makeBlackMerchant();
+ S.market.nextRefresh=Date.now()+3*60*1000;
+
+ log("市场商人已经刷新。");
+}
+
+function marketRefreshLeft(){
+ refreshMarket(false);
+ const left=Math.max(0,Math.ceil((S.market.nextRefresh-Date.now())/1000));
+ const m=Math.floor(left/60);
+ const s=left%60;
+ return `${m}分${s}秒`;
+}
+
+function officialYuanbaoToCopper(amount){
+ amount=Math.max(1,Math.floor(Number(amount)||0));
+
+ if(marketBlocked()){
+  log(`你被关进小黑屋了，${marketBlockText()}后才能使用市场。`);
+  return;
+ }
+
+ if(S.yuanbao<amount){
+  log("元宝不足，无法兑换铜币。");
+  return;
+ }
+
+ S.yuanbao-=amount;
+ S.copper=(S.copper||0)+amount*BANK_RATE;
+
+ log(`官方钱庄兑换成功：${fmt(amount)}元宝 → ${fmt(amount*BANK_RATE)}铜币。`);
+ render();
+}
+
+function officialCopperToYuanbao(amount){
+ amount=Math.max(1,Math.floor(Number(amount)||0));
+
+ if(marketBlocked()){
+  log(`你被关进小黑屋了，${marketBlockText()}后才能使用市场。`);
+  return;
+ }
+
+ const need=amount*BANK_RATE;
+
+ if((S.copper||0)<need){
+  log("铜币不足，无法兑换元宝。");
+  return;
+ }
+
+ S.copper-=need;
+ S.yuanbao+=amount;
+
+ log(`官方钱庄兑换成功：${fmt(need)}铜币 → ${fmt(amount)}元宝。`);
+ render();
+}
+
+function marketBuyMaterial(id,count=1){
+ refreshMarket(false);
+
+ if(marketBlocked()){
+  log(`你被关进小黑屋了，${marketBlockText()}后才能使用市场。`);
+  return;
+ }
+
+ count=Math.max(1,Math.floor(Number(count)||1));
+
+ const m=S.market.merchants.find(x=>x.id===id);
+
+ if(!m||m.action!=="sell"){
+  log("该商人不出售这个材料。");
+  return;
+ }
+
+ count=Math.min(count,m.stock);
+ const cost=m.price*count;
+
+ if(count<=0){
+  log("该商品已经售罄。");
+  return;
+ }
+
+ if((S.copper||0)<cost){
+  log("铜币不足。");
+  return;
+ }
+
+ S.copper-=cost;
+ m.stock-=count;
+ addMaterial(m.matType,m.q,count);
+
+ log(`你花费 ${fmt(cost)} 铜币，从${m.name}处购买 ${materialName(m.matType,m.q)}×${count}。`);
+ render();
+}
+
+function marketSellMaterial(id,count=1){
+ refreshMarket(false);
+
+ if(marketBlocked()){
+  log(`你被关进小黑屋了，${marketBlockText()}后才能使用市场。`);
+  return;
+ }
+
+ count=Math.max(1,Math.floor(Number(count)||1));
+
+ const m=S.market.merchants.find(x=>x.id===id);
+
+ if(!m||m.action!=="buy"){
+  log("该商人不收购这个材料。");
+  return;
+ }
+
+ const have=materialCount(m.matType,m.q);
+ count=Math.min(count,have,m.stock);
+
+ if(count<=0){
+  log("你没有足够的材料，或商人已经不收了。");
+  return;
+ }
+
+ const gain=m.price*count;
+
+ S.materials[m.matType][m.q]-=count;
+ m.stock-=count;
+ S.copper=(S.copper||0)+gain;
+
+ log(`你向${m.name}出售 ${materialName(m.matType,m.q)}×${count}，获得 ${fmt(gain)} 铜币。`);
+ render();
+}
+
+function useBlackMerchant(){
+ refreshMarket(false);
+
+ if(marketBlocked()){
+  log(`你被关进小黑屋了，${marketBlockText()}后才能使用市场。`);
+  return;
+ }
+
+ const b=S.market.blackMerchant;
+
+ if(!b){
+  log("当前没有黑商。");
+  return;
+ }
+
+ if(b.mode==="yb2copper"){
+  if(S.yuanbao<b.yuanbao){
+   log("元宝不足，无法和黑商交易。");
+   return;
+  }
+
+  S.yuanbao-=b.yuanbao;
+  S.copper=(S.copper||0)+b.copper;
+
+  log(`黑商交易成功：${fmt(b.yuanbao)}元宝 → ${fmt(b.copper)}铜币。`);
+ }else{
+  if((S.copper||0)<b.copper){
+   log("铜币不足，无法和黑商交易。");
+   return;
+  }
+
+  S.copper-=b.copper;
+  S.yuanbao+=b.yuanbao;
+
+  log(`黑商交易成功：${fmt(b.copper)}铜币 → ${fmt(b.yuanbao)}元宝。`);
+ }
+
+ S.market.blackMerchant=null;
+
+ if(Math.random()<0.10){
+  S.marketBlackUntil=Date.now()+60*60*1000;
+  log("你被巡查修士抓住了！因为与黑商交易，被关进小黑屋1小时，期间无法使用市场功能。");
+ }
+
+ render();
+}
+
+function forceRefreshMarket(){
+ if(marketBlocked()){
+  log(`你被关进小黑屋了，${marketBlockText()}后才能使用市场。`);
+  return;
+ }
+
+ const cost=200;
+
+ if(S.yuanbao<cost){
+  log(`元宝不足，手动刷新市场需要 ${cost} 元宝。`);
+  return;
+ }
+
+ S.yuanbao-=cost;
+ refreshMarket(true);
+ log(`消耗 ${cost} 元宝，手动刷新市场。`);
+ render();
+}
+function talismanStageObject(id){
+ return talismanStages.find(x=>x.id===id)||null;
+}
+
+function talismanDuration(){
+ const rank=Math.max(1,Math.floor(Number(S.profession?.rank)||1));
+
+ const minutesByRank={
+  1:10,
+  2:20,
+  3:40,
+  4:60,
+  5:120,
+  6:180,
+  7:240,
+  8:360,
+  9:480
+ };
+
+ return (minutesByRank[rank]||10)*60*1000;
+}
+
+function talismanDurationText(){
+ const ms=talismanDuration();
+ const min=Math.floor(ms/60000);
+
+ if(min<60)return `${min}分钟`;
+
+ const h=Math.floor(min/60);
+ const m=min%60;
+
+ return m?`${h}小时${m}分钟`:`${h}小时`;
+}
+
+function talismanSuccessRate(stage){
+ const rank=Math.max(1,Math.floor(Number(S.profession?.rank)||1));
+ return Math.min(.95,stage.baseRate+(rank-1)*.035);
+}
+
+function randomTalismanType(){
+ const arr=["power","exp","yb","gear","kill"];
+ return arr[Math.floor(Math.random()*arr.length)];
+}
+
+function talismanFullName(stage,type){
+ const t=talismanTypes[type];
+ const name=stage.names[Math.floor(Math.random()*stage.names.length)];
+ return `${stage.name}·${t?.name||"符箓"}·${name}`;
+}
+
+function makeTalisman(stageId){
+ const stage=talismanStageObject(stageId);
+ const type=randomTalismanType();
+
+ const rank=Math.max(1,Math.floor(Number(S.profession?.rank)||1));
+ const value=+(stage.power*(1+rank*.04)).toFixed(4);
+
+ return {
+  id:makeId(),
+  stage:stageId,
+  type,
+  name:talismanFullName(stage,type),
+  value,
+  duration:talismanDuration(),
+  createdAt:Date.now()
+ };
+}
+
+function talismanEffectText(t){
+ if(!t)return "";
+
+ const type=talismanTypes[t.type];
+ const value=((Number(t.value)||0)*100).toFixed(1);
+ const min=Math.floor((Number(t.duration)||0)/60000);
+
+ let timeText="";
+
+ if(min<60){
+  timeText=`${min}分钟`;
+ }else{
+  const h=Math.floor(min/60);
+  const m=min%60;
+  timeText=m?`${h}小时${m}分钟`:`${h}小时`;
+ }
+
+ return `${type?.effect||"属性"} +${value}%，持续 ${timeText}`;
+}
+
+function craftTalisman(stageId){
+ const stage=talismanStageObject(stageId);
+
+ if(!stage){
+  log("符箓图谱不存在。");
+  return;
+ }
+
+ if(S.profession?.type!=="talisman"){
+  log("你当前不是符箓师，无法制作符箓。");
+  return;
+ }
+
+ const rank=Math.max(1,Math.floor(Number(S.profession?.rank)||1));
+
+ if(rank<stage.needRank){
+  log(`职业品阶不足，制作${stage.name}符箓需要【${professionRanks[stage.needRank]}】。`);
+  return;
+ }
+
+ if(materialCount("hide",stage.hideQ)<stage.hide){
+  log(`${materialName("hide",stage.hideQ)}不足，需要 ${stage.hide} 个。`);
+  return;
+ }
+
+ S.materials.hide[stage.hideQ]-=stage.hide;
+
+ const rate=talismanSuccessRate(stage);
+ const ok=Math.random()<rate;
+
+ addProfessionExp(stage.exp);
+
+ if(!ok){
+  log(`制作${stage.name}符箓失败，获得职业经验 ${stage.exp}。`);
+  render();
+  return;
+ }
+
+ const talisman=makeTalisman(stage.id);
+
+ S.talismans=S.talismans||[];
+ S.talismans.unshift(talisman);
+ S.talismans=S.talismans.slice(0,300);
+
+ log(`制符成功！获得【${talisman.name}】，效果：${talismanEffectText(talisman)}。职业经验 +${stage.exp}。`);
+ render();
+}
+
+function useTalisman(id){
+ const talisman=(S.talismans||[]).find(x=>x.id===id);
+
+ if(!talisman){
+  log("符箓不存在。");
+  return;
+ }
+
+ S.activeTalismans=S.activeTalismans||{};
+
+ S.activeTalismans[talisman.type]={
+  value:Number(talisman.value)||0,
+  until:Date.now()+Number(talisman.duration||0),
+  name:talisman.name
+ };
+
+ S.talismans=S.talismans.filter(x=>x.id!==id);
+
+ log(`使用【${talisman.name}】，${talismanEffectText(talisman)}。同类型符箓已被覆盖。`);
+ render();
+}
+
+function activeTalismanText(type){
+ const t=S.activeTalismans?.[type];
+
+ if(!t||!t.until||t.until<=Date.now()){
+  return "未生效";
+ }
+
+ const left=Math.max(0,Math.ceil((t.until-Date.now())/1000));
+ const min=Math.floor(left/60);
+ const sec=left%60;
+
+ return `${t.name||"符箓"}，剩余 ${min}分${sec}秒`;
+}
 function currentMap(){
  if(S.mapType==="vip")return vipMaps[S.map];
  if(S.mapType==="equip")return equipDungeons[S.map];
  if(S.mapType==="exp")return expDungeons[S.map];
  if(S.mapType==="guild")return guildDungeons[S.map];
+ if(S.mapType==="beast")return beastRealms[S.map];
  return maps[S.map];
 }
 function bossPower(i){return Math.floor(Math.max(180,maps[i].req*1.26+170*(i+1)))}
@@ -418,6 +2598,15 @@ function rerollFate(){
  log(`消耗命格重铸石×1，命格重铸为【${f.name}】。`);
  render();
 }
+function softCapRate(v){
+ const sign=v<0?-1:1;
+ v=Math.abs(v);
+ if(v<=1)return sign*v;
+ if(v<=3){
+  return sign*(1+(v-1)*.5);
+ }
+ return sign*(2+(v-3)*.2);
+}
 function mods(){
  const r={exp:0,yb:0,power:0,gear:0,rare:0,kill:0,offline:0,sell:0,discount:0,vipExp:0,gate:0};
  for(const id of Object.keys(S.partners)){
@@ -432,12 +2621,56 @@ function mods(){
    if(r[k]!==undefined)r[k]+=v;
   }
  }
- r.rare+=totalLuck()/1000;
- r.gear+=totalLuck()/1500;
- r.discount=Math.min(.75,r.discount);
- return r;
+if(S.permStats){
+ if(r.power!==undefined)r.power+=Number(S.permStats.power)||0;
+ if(r.exp!==undefined)r.exp+=Number(S.permStats.exp)||0;
+ if(r.yb!==undefined)r.yb+=Number(S.permStats.yb)||0;
+ if(r.gear!==undefined)r.gear+=Number(S.permStats.gear)||0;
+ if(r.kill!==undefined)r.kill+=Number(S.permStats.kill)||0;
 }
-function power(){return Math.floor((basePower()+equippedList().reduce((s,i)=>s+equipPower(i),0))*(1+mods().power))}
+if(S.activeTalismans){
+ const now=Date.now();
+ for(const k of ["power","exp","yb","gear","kill"]){
+  const t=S.activeTalismans[k];
+  if(t&&t.until>now&&r[k]!==undefined){
+   r[k]+=Number(t.value)||0;
+  }
+ }
+}
+for(const item of equippedList()){
+ if(item&&item.affix&&item.affix.e){
+  for(const [k,v] of Object.entries(item.affix.e)){
+   if(r[k]!==undefined)r[k]+=Number(v)||0;
+  }
+ }
+}
+const ab=activeSpiritBeast();
+if(ab){
+ const scale=beastPowerMult(ab)*beastAffinityMult(ab);
+ if(ab.type==="battle"){
+  r.power+=scale*.04;
+  r.kill+=scale*.015;
+ }else{
+  r.exp+=scale*.02;
+  r.yb+=scale*.02;
+  r.gear+=scale*.01;
+ }
+}
+r.rare+=totalLuck()/1000;
+r.gear+=totalLuck()/1500;
+for(const k of ["exp","yb","power","gear","rare","kill","offline","sell","vipExp","gate"]){
+ r[k]=softCapRate(r[k]||0);
+}
+r.discount=Math.min(.75,Math.max(-.75,r.discount));
+return r;
+}
+function rawPower(){
+ return Math.floor((basePower()+equippedList().reduce((s,i)=>s+equipPower(i),0))*(1+mods().power));
+}
+function power(){
+ const raw=rawPower();
+ return Math.floor(Math.pow(Math.max(1,raw),0.65));
+}
 function gatePower(){return Math.floor(power()*(1+mods().gate))}
 function spend(amount){if(S.yuanbao<amount){log("元宝不足。");return false}S.yuanbao-=amount;const g=Math.floor(amount*(1+mods().vipExp));S.vipExp+=g;log(`消费 ${fmt(amount)} 元宝，自动获得 ${fmt(g)} VIP经验。`);return true}
 function gainExp(a){S.exp+=a;while(S.exp>=expNeed()){S.exp-=expNeed();S.level++;log(`南黎升级到 Lv.${S.level}！`)}}
@@ -510,7 +2743,7 @@ function grantKills(kills,reason="挂机"){
   const raw=kills*map.eq*(1+b.gear);
   equipCount=Math.floor(raw)+(Math.random()<raw%1?1:0);
  }
-gainExp(Math.floor(exp));yb=Math.floor(yb*YUANBAO_GAIN_RATE);S.yuanbao+=yb;S.stats.kills+=kills;
+gainExp(Math.floor(exp));yb=Math.floor(yb*YUANBAO_GAIN_RATE);S.yuanbao+=yb;S.stats.kills+=kills;grantMaterialDrops(kills,map);grantBeastRealmDrops(kills,map);
  let dropBreakCount=0,dropBreakValue=0;
 for(let i=0;i<Math.min(equipCount,110);i++){
  const item=newEquip(rollSlot(),map.tier,rollQuality(map.tier,"drop"));
@@ -547,7 +2780,7 @@ let kpm=map.kpm*(1+mods().kill);
 const overRate=vipTrialActive?0:(gatePower()-map.req)/Math.max(1,map.req)*.2;
 kpm*=1+Math.min(1.2,overRate);if(offline)kpm*=1+mods().offline;S.killFloat+=kpm/60*seconds;const kills=Math.floor(S.killFloat);S.killFloat-=kills;if(kills>0)grantKills(kills,offline?"离线":"挂机")}
 function calcOffline(){const now=Date.now(),sec=Math.min(12*3600,Math.floor((now-(S.last||now))/1000));if(sec>60){tick(sec,true);log(`离线 ${Math.floor(sec/60)} 分钟收益已结算。`)}S.last=now}
-function claimGift(){if(S.gift)return;S.gift=true;S.yuanbao+=8888;S.doubleExpPills++;S.vipTrialLow+=3;S.forgeStones+=300;log("领取新手礼包：8888元宝、双倍经验丹×1、体验卡×3、锻造石×300。");render()}
+function claimGift(){if(S.gift)return;S.gift=true;S.yuanbao+=888;S.doubleExpPills++;S.vipTrialLow+=3;S.forgeStones+=300;log("领取新手礼包：888元宝、双倍经验丹×1、体验卡×3、锻造石×300。");render()}
 function claimCompGift(){
  if(S.compGift)return log("补偿礼包已经领取过。");
  S.compGift=true;
@@ -558,7 +2791,7 @@ function claimCompGift(){
 }
 function usePill(){if(S.doubleExpPills<=0)return log("没有双倍经验丹。");S.doubleExpPills--;S.doubleExpUntil=Math.max(Date.now(),S.doubleExpUntil||0)+30*60*1000;S.expBuffUntil=0;S.expBuffMult=1;log("使用双倍经验丹：30分钟内经验翻倍。");render()}
 function useMultiPill(mult){const key=mult===3?"tripleExpPills":mult===5?"fiveExpPills":"tenExpPills";if(S[key]<=0)return log(`没有${mult}倍经验丹。`);S[key]--;S.expBuffMult=mult;S.expBuffUntil=Date.now()+5*60*1000;log(`使用${mult}倍经验丹：5分钟内经验×${mult}。`);render()}
-function selectMap(type,index){const map=type==="vip"?vipMaps[index]:type==="equip"?equipDungeons[index]:type==="exp"?expDungeons[index]:type==="guild"?guildDungeons[index]:maps[index];if(type==="main"&&index>S.unlockedMain)return log("需要先击败上一张地图的BOSS。");if(gatePower()<map.req)return log("战力不足，无法进入。");if(type==="vip"&&vipLevel()<map.vip)return log(`VIP等级不足，需要 V${map.vip}。`);
+function selectMap(type,index){const map=type==="vip"?vipMaps[index]:type==="equip"?equipDungeons[index]:type==="exp"?expDungeons[index]:type==="guild"?guildDungeons[index]:type==="beast"?beastRealms[index]:maps[index];if(type==="main"&&index>S.unlockedMain)return log("需要先击败上一张地图的BOSS。");if(gatePower()<map.req)return log("战力不足，无法进入。");if(type==="vip"&&vipLevel()<map.vip)return log(`VIP等级不足，需要 V${map.vip}。`);
 if(type==="guild"){
  if(typeof Online==="undefined"||!Online.token)return log("请先登录账号。");
  if(!Online.inGuild)return log("你还没有加入帮会，无法进入帮会副本。");
@@ -581,7 +2814,21 @@ function enhance(id){const item=equipById(id);if(!item)return;const cost=forgeCo
 function sellValue(item){const q=qualities[item.q].m,tierPart=Math.pow(item.tier,0.92),enhancePart=1+Math.min(item.lv*.22,2.5),highPenalty=item.q>=7?.72:item.q>=5?.86:1;return Math.max(1,Math.floor(8*tierPart*q*enhancePart*highPenalty))}
 function sell(id){const item=equipById(id);if(!item)return;if(item.bound)return log("伴生法器已绑定，不能分解。");const value=sellValue(item);for(const s in S.equipped)if(S.equipped[s]===id)S.equipped[s]=null;S.inventory=S.inventory.filter(e=>e.id!==id);S.forgeStones+=value;log(`分解 ${item.name}，获得 ${fmt(value)} 锻造石。`);render()}
 function sellUnequipped(){const worn=equippedIds();let total=0,count=0;S.inventory=S.inventory.filter(item=>{if(worn.has(item.id)||item.bound)return true;total+=sellValue(item);count++;return false});S.forgeStones+=total;log(count?`一键分解其他装备 ${count} 件，获得 ${fmt(total)} 锻造石。`:"没有可分解的其他装备。");render()}
-function wear(id){const item=equipById(id);if(!item)return;S.equipped[item.slot]=id;log(`装备 ${item.name}。`);render()}
+function wear(id){
+ const item=equipById(id);
+ if(!item)return;
+
+ S.equipped[item.slot]=id;
+
+ if(item.crafted&&!item.tradeBound){
+  item.tradeBound=true;
+  log(`装备 ${item.name}。该炼器装备已绑定，无法上架交易行。`);
+ }else{
+  log(`装备 ${item.name}。`);
+ }
+
+ render();
+}
 function bestScore(i){return equipPower(i)+(i.slot==="jewelry"?equipLuck(i)*8:0)}
 function bestEquip(){const before=power();for(const s of slotKeys){const best=S.inventory.filter(i=>i.slot===s).sort((a,b)=>bestScore(b)-bestScore(a))[0];if(best)S.equipped[s]=best.id}log(`一键穿戴完成：战力 ${fmt(before)} → ${fmt(power())}。`);render()}
 function sortInventory(){const worn=equippedIds();S.inventory.sort((a,b)=>Number(worn.has(b.id))-Number(worn.has(a.id))||slotKeys.indexOf(a.slot)-slotKeys.indexOf(b.slot)||b.q-a.q||b.tier-a.tier||b.lv-a.lv||bestScore(b)-bestScore(a));log("背包整理完成。");render()}
@@ -698,7 +2945,7 @@ function vipGift(level){
 function vipGiftText(level){const g=vipGift(level),shardText=Object.entries(g.shards).filter(([,n])=>n>0).map(([q,n])=>`${shardName(q)}万能碎片×${n}`).join("、");return `${fmt(g.yb)}元宝、${fmt(g.forge)}锻造石${g.double?`、双倍经验丹×${g.double}`:""}${g.triple?`、三倍经验丹×${g.triple}`:""}${g.five?`、五倍经验丹×${g.five}`:""}${g.ten?`、十倍经验丹×${g.ten}`:""}${g.trial?`、体验卡×${g.trial}`:""}${g.equip?`、高阶装备×${g.equip}`:""}${shardText?`、${shardText}`:""}`}
 function claimVipGift(level){if(vipLevel()<level)return log(`VIP等级不足，无法领取 V${level} 礼包。`);if(S.vipGifts[level])return log(`V${level} 礼包已经领取过。`);const g=vipGift(level);S.vipGifts[level]=true;S.yuanbao+=g.yb;S.forgeStones+=g.forge;S.doubleExpPills+=g.double;S.tripleExpPills+=g.triple;S.fiveExpPills+=g.five;S.tenExpPills+=g.ten;S.vipTrialLow+=g.trial;for(const [q,n] of Object.entries(g.shards))if(n>0)addUniversalShard(q,n);for(let i=0;i<g.equip;i++){const tier=Math.max(4,level+6),q=level>=12?rollQuality(tier,"gacha"):Math.max(3,rollQuality(tier,"gacha"));S.inventory.push(newEquip(rollSlot(),tier,q))}log(`领取 V${level} VIP礼包。`);render()}
 function grantFengyouReward(id){const p=partnerObject(id);grantPartner(p,[]);log(`暴打风油通关大奖：获得炫彩伙伴【${p.name}】！`)}
-function challengeFengyou(){resetDaily();if(S.fengyouUsed>=5)return log("暴打风油今日通关机会已用完。");const req=50000;if(gatePower()<req)return log(`战力不足，暴打风油需要 ${fmt(req)} 门槛战力。`);S.fengyouUsed++;S.yuanbao+=4444;S.forgeStones+=888;gainExp(50000);if(Math.random()<.2){grantFengyouReward(Math.random()<.5?"fengyou":"dingwenxia")}else log(`暴打风油通关，获得 50,000经验、4,444元宝、888锻造石。本次未掉落炫彩伙伴。今日 ${S.fengyouUsed}/5。`);render()}
+function challengeFengyou(){resetDaily();if(S.fengyouUsed>=5)return log("暴打风油今日通关机会已用完。");const req=50000;if(gatePower()<req)return log(`战力不足，暴打风油需要 ${fmt(req)} 门槛战力。`);S.fengyouUsed++;S.yuanbao+=444;S.forgeStones+=888;gainExp(50000);if(Math.random()<.2){grantFengyouReward(Math.random()<.5?"fengyou":"dingwenxia")}else log(`暴打风油通关，获得 50,000经验、4,444元宝、888锻造石。本次未掉落炫彩伙伴。今日 ${S.fengyouUsed}/5。`);render()}
 
 let PERM=(()=>{try{return JSON.parse(localStorage.getItem(PERM_KEY))||{artifactClaimed:false,artifact:null}}catch{return{artifactClaimed:false,artifact:null}}})();
 function savePerm(){localStorage.setItem(PERM_KEY,JSON.stringify(PERM))}
@@ -730,14 +2977,13 @@ function claimRankingReward(rank){
   return;
  }
 
- const rewards=[
-  {yb:30000,forge:12000,black:2,god:1},
-  {yb:20000,forge:9000,black:1,god:1},
-  {yb:12000,forge:7000,black:1,god:0},
-  {yb:8000,forge:5000,black:0,god:0},
-  {yb:5000,forge:3000,black:0,god:0}
+const rewards=[
+  {yb:3000,forge:12000,black:2,god:1},
+  {yb:2000,forge:9000,black:1,god:1},
+  {yb:1200,forge:7000,black:1,god:0},
+  {yb:800,forge:5000,black:0,god:0},
+  {yb:500,forge:3000,black:0,god:0}
  ];
-
  const r=rewards[rank-1];
 
  S.yuanbao+=r.yb;
@@ -932,19 +3178,19 @@ function claimArenaReward(rank){
 
  rank=Math.max(1,Math.floor(Number(rank)||999999));
 
- let yb=3000,forge=1000,stone=0,black=0,god=0;
+ let yb=300,forge=1000,stone=0,black=0,god=0;
 
  if(rank===1){
-  yb=100000;forge=30000;stone=2;black=2;god=1;
+  yb=10000;forge=30000;stone=2;black=2;god=1;
  }else if(rank===2){
-  yb=70000;forge=22000;stone=2;black=2;
+  yb=7000;forge=22000;stone=2;black=2;
  }else if(rank===3){
-  yb=50000;forge=16000;stone=1;black=1;
+  yb=5000;forge=16000;stone=1;black=1;
  }else if(rank<=10){
-  yb=30000;forge=10000;stone=1;
+  yb=3000;forge=10000;stone=1;
   addUniversalShard("legend",3);
  }else if(rank<=50){
-  yb=15000;forge=5000;
+  yb=1500;forge=5000;
   addUniversalShard("rare",5);
  }
 
@@ -958,6 +3204,15 @@ function claimArenaReward(rank){
 
  log(`领取第一赛季竞技场第${rank}名奖励：${fmt(yb)}元宝、${fmt(forge)}锻造石${stone?`、命格重铸石×${stone}`:""}${black?`、黑万能碎片×${black}`:""}${god?`、神万能碎片×${god}`:""}。`);
  render();
+}
+function applyBalance2Migration(){
+ if((S.balanceVersion||0)>=2)return;
+ const oldYuanbao=Math.max(0,Math.floor(Number(S.yuanbao)||0));
+ const newYuanbao=Math.floor(Math.pow(oldYuanbao,0.72));
+ S.yuanbao=newYuanbao;
+ S.balanceVersion=2;
+ log(`战力2.0数值压缩完成：元宝 ${fmt(oldYuanbao)} → ${fmt(newYuanbao)}。`);
+ localStorage.setItem(SAVE_KEY,JSON.stringify(S));
 }
 function currentHourKey(){
  const d=new Date();
@@ -1001,7 +3256,7 @@ function isEditingInput(){
  return tag==="INPUT"||tag==="TEXTAREA"||tag==="SELECT";
 }
 function shouldSkipAutoRender(){
- return isEditingInput() || S.tab==="chat" || S.tab==="guild" || S.tab==="arena";
+ return isEditingInput() || S.tab==="chat" || S.tab==="guild" || S.tab==="arena" || S.tab==="beastArena";
 }
 function tab(name){
  S.tab=name;
@@ -1025,14 +3280,23 @@ if(name==="arena"){
    Online.loadArenaNearby();
    Online.loadArenaBattles();
 }
+if(name==="auction"){
+   Online.loadAuctionListings();
+   Online.loadMyAuctionListings();
+   Online.loadAuctionHistory();
+}
+if(name==="beastArena"){
+   Online.loadBeastArenaNearby();
+   Online.loadBeastArenaBattles();
+}
  },100);
 }
 
 function render(){
  resetDaily();syncArtifact();checkTrial();
  const level=vipLevel(),previous=vipNeed[level]||0,next=vipNeed[Math.min(15,level+1)]||vipNeed[15];
- app.innerHTML=`<div class="tabs">${[["home","主页"],["map","地图"],["dungeon","副本"],["equip","装备"],["partner","伙伴"],["gacha","抽卡"],["vip","VIP"],["task","任务栏"],["arena","竞技场"],["chat","聊天"],["guild","帮会"],["gift","礼包"]].map(([id,name])=>`<button class="${S.tab===id?"on":""}" onclick="Game.tab('${id}')">${name}</button>`).join("")}</div>
- ${S.tab==="home"?homeHTML(level,previous,next):""}${S.tab==="map"?mapHTML():""}${S.tab==="dungeon"?dungeonHTML():""}${S.tab==="equip"?equipHTML():""}${S.tab==="partner"?partnerHTML():""}${S.tab==="gacha"?gachaHTML():""}${S.tab==="vip"?vipHTML(level,previous,next):""}${S.tab==="task"?taskHTML():""}${S.tab==="arena"?arenaHTML():""}${S.tab==="chat"?chatHTML():""}${S.tab==="guild"?guildHTML():""}${S.tab==="gift"?giftHTML():""}`;
+ app.innerHTML=`<div class="tabs">${[["home","主页"],["map","地图"],["dungeon","副本"],["equip","装备"],["partner","伙伴"],["gacha","抽卡"],["vip","VIP"],["task","任务栏"],["life","生活职业"],["beast","灵兽"],["beastArena","斗兽场"],["market","市场"],["auction","交易行"],["arena","竞技场"],["chat","聊天"],["guild","帮会"],["gift","礼包"]].map(([id,name])=>`<button class="${S.tab===id?"on":""}" onclick="Game.tab('${id}')">${name}</button>`).join("")}</div>
+ ${S.tab==="home"?homeHTML(level,previous,next):""}${S.tab==="map"?mapHTML():""}${S.tab==="dungeon"?dungeonHTML():""}${S.tab==="equip"?equipHTML():""}${S.tab==="partner"?partnerHTML():""}${S.tab==="gacha"?gachaHTML():""}${S.tab==="vip"?vipHTML(level,previous,next):""}${S.tab==="task"?taskHTML():""}${S.tab==="task"?taskHTML():""}${S.tab==="life"?lifeHTML():""}${S.tab==="beast"?beastHTML():""}${S.tab==="beastArena"?beastArenaHTML():""}${S.tab==="market"?marketHTML():""}${S.tab==="auction"?auctionHTML():""}${S.tab==="arena"?arenaHTML():""}${S.tab==="chat"?chatHTML():""}${S.tab==="guild"?guildHTML():""}${S.tab==="gift"?giftHTML():""}`;
  lastRender=Date.now();
 }
 function taskSummaryHTML(){const all=S.unlockedMain>=maps.length-1&&S.bossKilled[maps.length-1],i=Math.min(S.unlockedMain,maps.length-1);return `<div class="panel"><h2>当前任务</h2><p>${all?"全部主线BOSS均已击败。继续刷副本、收集炫彩装备、提升伙伴星级与VIP等级。":`击败【${maps[i].boss}】，解锁下一阶段地图。`}</p><div class="stat"><div>当前挂机<br><b>${currentMap().name}</b></div><div>BOSS门槛<br><b>${fmt(bossPower(i))}</b></div><div>当前BOSS次数<br><b>${bossUse(i)}/3</b></div><div>暴打风油<br><b>${S.fengyouUsed}/5</b></div></div><p class="muted">后备伙伴也会根据品质和星级提供少量属性；上阵伙伴提供完整属性。</p></div>`}
@@ -1069,7 +3333,7 @@ function dungeonHTML(){
   <p class="muted">每天5次通关机会。每次通关有20%概率获得炫彩品质伙伴：风油 或 丁文霞。</p>
   <div class="card selected">
    <h3>暴打风油</h3>
-   <p>战力门槛：50,000<br>今日通关：${S.fengyouUsed}/5<br>通关奖励：50,000经验、4444元宝、888锻造石<br>额外掉落：20%获得炫彩伙伴风油/丁文霞</p>
+   <p>战力门槛：50,000<br>今日通关：${S.fengyouUsed}/5<br>通关奖励：50,000经验、444元宝、888锻造石<br>额外掉落：20%获得炫彩伙伴风油/丁文霞</p>
    <button class="goldBtn" onclick="Game.challengeFengyou()" ${S.fengyouUsed>=5||gatePower()<50000?"disabled":""}>暴打一次</button>
   </div>
  </div>
@@ -1119,6 +3383,24 @@ function dungeonHTML(){
  </div>
 
  <div class="panel">
+  <h2>灵兽幻境</h2>
+  <p class="muted">灵兽幻境会掉落矿石、草药、兽皮，并有50%概率遭遇灵兽。遭遇后可前往“灵兽”页面使用捕兽网尝试捕捉。</p>
+  <div class="grid">
+   ${beastRealms.map((m,i)=>`
+    <div class="card ${S.mapType==="beast"&&S.map===i?"selected":""}">
+     <h3>${m.name}</h3>
+     <p>
+      战力门槛：${fmt(m.req)}<br>
+      灵材掉落强度：${m.mat}<br>
+      副本阶级：${m.tier}<br>
+      可能遭遇灵兽
+     </p>
+     <button onclick="Game.selectMap('beast',${i})" ${gatePower()<m.req?"disabled":""}>进入灵兽幻境</button>
+    </div>
+   `).join("")}
+  </div>
+ </div>
+ <div class="panel">
   <h2>帮会副本</h2>
   <p class="muted">需要加入帮会。帮会副本会产出经验、元宝、装备，并有较低概率掉落命格重铸石。</p>
   <div class="grid">
@@ -1132,7 +3414,15 @@ function dungeonHTML(){
   </div>
  </div>`;
 }
-function equipLine(i){return `<span class="${qualities[i.q].c}"><b>${i.name} +${i.lv}</b></span><br><span class="muted">${slots[i.slot]} · ${qualities[i.q].name} · 阶级${i.tier} · 战力 ${fmt(equipPower(i))}${i.slot==="jewelry"?` · 气运 ${fmt(equipLuck(i))}`:""}</span>`}
+function equipLine(i){
+ return `<span class="${qualities[i.q].c}"><b>${i.name} +${i.lv}</b></span><br>
+ <span class="muted">
+ ${slots[i.slot]} · ${qualities[i.q].name} · 阶级${i.tier} · 战力 ${fmt(equipPower(i))}${i.slot==="jewelry"?` · 气运 ${fmt(equipLuck(i))}`:""}
+ ${i.crafted?`<br><span class="gold">由炼器大师：${i.craftedBy||"未知"} 打造</span>`:""}
+ ${i.crafted?`<br><span class="${i.tradeBound?"bad":"good"}">${i.tradeBound?"已绑定，无法上架交易行":"未绑定，可上架交易行"}</span>`:""}
+ ${i.affix?`<br><span class="good">${craftedAffixText(i)}</span>`:""}
+ </span>`;
+}
 function equipHTML(){return `<div class="panel"><div class="row"><h2 style="margin-right:auto">装备栏</h2><button class="goldBtn" onclick="Game.bestEquip()">一键穿戴最佳装备</button><button onclick="Game.sortInventory()">整理背包</button><button class="danger" onclick="Game.sellUnequipped()">一键分解其他装备</button></div><p class="muted">强化装备不再消耗元宝，只消耗锻造石。分解装备只获得锻造石。</p><div class="grid">${slotKeys.map(s=>{const i=equipById(S.equipped[s]);return `<div class="equipSlot"><b>${slots[s]}</b><br>${i?equipLine(i):"<span class='muted'>未装备</span>"}</div>`}).join("")}</div></div><div class="panel"><h2>背包装备</h2><div class="grid">${S.inventory.map(i=>`<div class="card">${equipLine(i)}${equippedIds().has(i.id)?"<p class='gold'>当前穿戴中</p>":""}${i.bound?"<p class='good'>绑定装备，重置不清空</p>":""}<p class="muted">强化消耗：${fmt(forgeCost(i))} 锻造石；分解获得：${fmt(sellValue(i))} 锻造石</p><div class="row"><button onclick="Game.wear('${i.id}')">装备</button><button onclick="Game.enhance('${i.id}')">强化</button><button class="danger" onclick="Game.sell('${i.id}')">分解</button></div></div>`).join("")}</div></div>`}
 function partnerHTML(){const visible=S.showAllPartners?partners.filter(p=>!p.hidden||S.partners[p.id]):partners.filter(p=>S.partners[p.id]);const list=visible.sort((a,b)=>(S.carried.includes(b.id)-S.carried.includes(a.id))+(partnerQual[b.q].rank-partnerQual[a.q].rank)*10+((S.partners[b.id]?.star||0)-(S.partners[a.id]?.star||0)));return `<div class="panel"><div class="row"><h2 style="margin-right:auto">伙伴</h2><button onclick="Game.sortPartners()">整理伙伴</button><button onclick="Game.togglePartnerView()">${S.showAllPartners?"只显示已拥有":"查看全部图鉴"}</button></div><p>隐藏伙伴未获得前不会显示；后备伙伴也会根据品质和星级提供少量属性。黑品质伙伴夏永康携带后所有属性下降50%。</p><div class="notice"><h3>万能碎片</h3><div class="grid">${shardOrder.map((q,i)=>`<div class="card"><b class="${partnerQual[q].c}">${shardName(q)}万能碎片</b><br>数量：${S.universalShards[q]||0}<div class="row"><button onclick="Game.exchangeUniversalShard('${q}')" ${i>=shardOrder.length-1||((S.universalShards[q]||0)<5)?"disabled":""}>5合1兑换</button><button class="goldBtn" onclick="Game.exchangeAllUniversalShard('${q}')" ${i>=shardOrder.length-1||((S.universalShards[q]||0)<5)?"disabled":""}>一键合成</button></div></div>`).join("")}</div></div>${list.length?"":`<p class="muted">还没有伙伴，去抽卡页面抽取。</p>`}<div class="grid">${list.map(p=>{const o=S.partners[p.id],star=o?.star||1,carried=S.carried.includes(p.id),need=o&&star<6?star*2+1:0,universal=S.universalShards[p.q]||0;return `<div class="card ${carried?"selected":""}"><h3><span class="${partnerQual[p.q].c}">[${partnerQual[p.q].name}]</span> ${p.name}</h3><p><b>${o?`${star}星`:"未获得"}</b>${p.hidden?"　<span class='gold'>隐藏</span>":""}</p><p><b>1星基础：</b><br>${effectText(p,1)}</p>${o?`<p class="good"><b>当前生效：</b><br>${effectText(p,star)}</p>`:""}<p class="muted">星级倍率：×${starMultiplier(star).toFixed(2)}<br>个人碎片：${o?.shards||0}${o&&star<6?` / ${need}`:""}<br>可用${shardName(p.q)}万能碎片：${universal}</p><div class="row"><button onclick="Game.carry('${p.id}')" ${!o?"disabled":""}>${carried?"卸下":"携带"}</button><button onclick="Game.useUniversalShard('${p.id}')" ${!o||star>=6||universal<need?"disabled":""}>万能碎片升星</button><button onclick="Game.breakPartnerShards('${p.id}')" ${!o||!o.shards?"disabled":""}>分解个人碎片</button></div></div>`}).join("")}</div></div>`}
 function gachaHTML(){return `<div class="two"><div class="panel"><h2>装备库</h2><p>装备抽卡总数：${fmt(S.equipDraws)} 次<br>传奇装备保底：${S.equipLegendaryPity}/1000<br>炫彩装备保底：${S.equipColorPity}/10000<br>自动分解：${S.autoBreakBlue?"蓝色品质及以下装备会低价分解为锻造石":"未开启"}</p><div class="row"><button onclick="Game.drawEquip(1)">抽1次 · 388元宝</button><button onclick="Game.drawEquip(10)">抽10次 · 3333元宝</button><button class="goldBtn" onclick="Game.drawEquip(100)">抽100次 · 30000元宝</button><label class="tag">
@@ -1144,6 +3434,827 @@ function gachaHTML(){return `<div class="two"><div class="panel"><h2>装备库</
 function vipHTML(level,previous,next){const p=level>=15?100:clamp((S.vipExp-previous)/(next-previous)*100,0,100);return `<div class="panel"><h2>VIP系统 V${level}</h2><p>VIP礼包已重做，高等级礼包提供大量元宝、锻造石、高倍经验丹、高阶装备和万能碎片。</p><div class="bar vip"><span style="width:${p}%"></span></div><p>VIP经验：${fmt(S.vipExp)}${level<15?` / ${fmt(next)}`:"（已满级）"}<br>挂机收益加成：${((vipRewardMult()-1)*100).toFixed(1)}%<br>每日2小时收益次数：${quickLimit()}<br>VIP副本体验次数：${S.vipTrialLow}</p><button class="goldBtn" onclick="Game.enterTrialVip()">消耗1次体验最高级VIP副本1分钟</button></div><div class="panel"><h3>VIP等级礼包</h3><div class="grid">${vipNeed.map((need,i)=>`<div class="card ${level===i?"selected":""}"><h3>V${i}</h3><p>门槛：${fmt(need)} VIP经验<br>礼包：${vipGiftText(i)}</p><button class="goldBtn" onclick="Game.claimVipGift(${i})" ${level<i||S.vipGifts[i]?"disabled":""}>${S.vipGifts[i]?"已领取":"领取礼包"}</button></div>`).join("")}</div></div>`}
 function taskRequirementText(t){return `提交未穿戴的 ${qualities[t.q].name}及以上 · ${slots[t.slot]} · 阶级${t.tier}及以上`}
 function taskHTML(){refreshTasks();return `${taskSummaryHTML()}<div class="panel"><div class="row"><h2 style="margin-right:auto">随机指定装备任务</h2><button onclick="Game.refreshTasks()">手动刷新任务</button></div><p class="muted">任务奖励根据提交要求品质与阶级计算；任务会消耗一件符合条件且未穿戴的装备。</p><div class="grid">${S.tasks.map(t=>{const ok=S.inventory.some(i=>!equippedIds().has(i.id)&&taskItemMatch(i,t));return `<div class="card ${t.done?"selected":""}"><h3>${t.done?"已完成":"装备委托"}</h3><p>${taskRequirementText(t)}</p><p class="gold">奖励：${fmt(t.reward.exp)}经验、${fmt(t.reward.yb)}元宝、${fmt(t.reward.vip)}VIP经验、${fmt(t.reward.forge||0)}锻造石${t.reward.pill?`、${t.reward.pill}倍经验丹×1`:""}</p><button class="goldBtn" onclick="Game.completeTask('${t.id}')" ${t.done||!ok?"disabled":""}>提交完成</button>${!ok&&!t.done?`<p class="bad">暂无符合条件的未穿戴装备</p>`:""}</div>`}).join("")}</div></div>${logHTML()}`}
+function materialBagHTML(){
+ const blocks=[];
+
+ for(const type of ["ore","herb","hide"]){
+  const t=materialTypes[type];
+  const rows=[];
+
+  for(let q=0;q<qualities.length;q++){
+   const n=materialCount(type,q);
+   if(n>0){
+    rows.push(`
+     <div class="card">
+      <h3><span class="${qualities[q].c}">${t.icon} ${materialName(type,q)}</span></h3>
+      <p>品质：<span class="${qualities[q].c}">${qualities[q].name}</span><br>数量：<b class="gold">${fmt(n)}</b></p>
+     </div>
+    `);
+   }
+  }
+
+  blocks.push(`
+   <div class="panel">
+    <h3>${t.icon} ${t.name}</h3>
+    ${rows.length?`<div class="grid">${rows.join("")}</div>`:"<p class='muted'>暂无该类材料。主世界挂机有概率获得。</p>"}
+   </div>
+  `);
+ }
+
+ return blocks.join("");
+}
+
+function professionDetailHTML(){
+ const type=S.profession?.type||"";
+
+ if(!type){
+  return `<div class="panel">
+   <h2>职业详情</h2>
+   <p class="muted">你还没有选择生活职业。完成转生并选择职业后，这里才会显示对应职业的功能。</p>
+  </div>`;
+ }
+
+ if(type==="alchemist"){
+  return alchemyHTML();
+ }
+
+ if(type==="smith"){
+  return smithHTML();
+ }
+
+ if(type==="talisman"){
+  return talismanHTML();
+}
+
+if(type==="beastmaster"){
+  return beastMasterHTML();
+}
+
+ return "";
+}
+function alchemyHTML(){
+ const isAlchemist=S.profession?.type==="alchemist";
+
+ return `<div class="panel">
+  <h2>炼丹师</h2>
+  <p class="muted">炼丹师可消耗草药与兽皮炼制丹药。丹药可永久增加少量属性。职业品阶越高，炼丹成功率越高，也更容易炼出上等丹药。</p>
+
+  <div class="stat">
+   <div>永久战力<br><span class="big gold">+${fmt(S.permStats?.power||0)}</span></div>
+   <div>永久经验<br><span class="big gold">+${(((S.permStats?.exp)||0)*100).toFixed(2)}%</span></div>
+   <div>永久元宝<br><span class="big gold">+${(((S.permStats?.yb)||0)*100).toFixed(2)}%</span></div>
+   <div>永久掉率<br><span class="big gold">+${(((S.permStats?.gear)||0)*100).toFixed(2)}%</span></div>
+   <div>永久击杀速度<br><span class="big gold">+${(((S.permStats?.kill)||0)*100).toFixed(2)}%</span></div>
+  </div>
+
+  ${!isAlchemist?`<p class="bad">当前职业不是炼丹师，无法炼丹。转生后可选择炼丹师。</p>`:""}
+
+  <h3>丹方</h3>
+  <div class="grid">
+   ${pillStages.map(stage=>{
+    const rate=(pillSuccessRate(stage)*100).toFixed(1);
+    const okRank=(S.profession?.rank||1)>=stage.needRank;
+    const okHerb=materialCount("herb",stage.herbQ)>=stage.herb;
+    const okHide=materialCount("hide",stage.hideQ)>=stage.hide;
+    const can=isAlchemist&&okRank&&okHerb&&okHide;
+
+    return `<div class="card">
+     <h3>${stage.name}丹方</h3>
+     <p>
+      需要职业品阶：${professionRanks[stage.needRank]}<br>
+      成功率：<b class="gold">${rate}%</b><br>
+      消耗：<br>
+      🌿 ${materialName("herb",stage.herbQ)} ×${stage.herb}
+      <span class="${okHerb?"good":"bad"}">当前 ${materialCount("herb",stage.herbQ)}</span><br>
+      🐾 ${materialName("hide",stage.hideQ)} ×${stage.hide}
+      <span class="${okHide?"good":"bad"}">当前 ${materialCount("hide",stage.hideQ)}</span><br>
+      成功可能获得：${stage.names.map((n,i)=>`${stage.name}${pillGrades[i].name}·${n}`).join(" / ")}
+     </p>
+     ${!okRank?`<p class="bad">职业品阶不足</p>`:""}
+     <button class="goldBtn" onclick="Game.refinePill('${stage.id}')" ${!can?"disabled":""}>炼制${stage.name}丹药</button>
+    </div>`;
+   }).join("")}
+  </div>
+ </div>
+
+ <div class="panel">
+  <h2>丹药背包</h2>
+  ${(S.pills||[]).length?`<div class="grid">
+   ${(S.pills||[]).map(pill=>`
+    <div class="card">
+     <h3 class="gold">${pill.name}</h3>
+     <p>效果：${pillEffectText(pill)}<br>服用后永久生效。</p>
+     <button class="goldBtn" onclick="Game.usePillItem('${pill.id}')">服用</button>
+    </div>
+   `).join("")}
+  </div>`:"<p class='muted'>暂无丹药。炼丹成功后会出现在这里。</p>"}
+ </div>`;
+}
+function talismanHTML(){
+ const isTalisman=S.profession?.type==="talisman";
+
+ return `<div class="panel">
+  <h2>符箓师</h2>
+  <p class="muted">符箓师可消耗兽皮制作符箓。符箓可提供临时大量属性加成。职业品阶越高，成功率越高，符箓持续时间越久。</p>
+
+  ${!isTalisman?`<p class="bad">当前职业不是符箓师，无法制符。</p>`:""}
+
+  <div class="stat">
+   <div>当前符箓持续时间<br><span class="big gold">${talismanDurationText()}</span></div>
+   <div>职业品阶<br><span class="big">${professionRankName()}</span></div>
+   <div>职业经验<br><span class="big">${fmt(S.profession?.exp||0)}</span></div>
+  </div>
+
+  <h3>当前生效符箓</h3>
+  <div class="grid">
+   ${Object.entries(talismanTypes).map(([type,info])=>`
+    <div class="card">
+     <h3>${info.name}</h3>
+     <p>${info.effect}</p>
+     <p class="gold">${activeTalismanText(type)}</p>
+    </div>
+   `).join("")}
+  </div>
+
+  <h3>符箓图谱</h3>
+  <div class="grid">
+   ${talismanStages.map(stage=>{
+    const rate=(talismanSuccessRate(stage)*100).toFixed(1);
+    const okRank=(S.profession?.rank||1)>=stage.needRank;
+    const okHide=materialCount("hide",stage.hideQ)>=stage.hide;
+    const can=isTalisman&&okRank&&okHide;
+
+    return `<div class="card">
+     <h3>${stage.name}符箓</h3>
+     <p>
+      需要职业品阶：${professionRanks[stage.needRank]}<br>
+      成功率：<b class="gold">${rate}%</b><br>
+      基础效果：约 +${(stage.power*100).toFixed(0)}% 临时属性<br>
+      持续时间：<b class="gold">${talismanDurationText()}</b><br>
+      消耗：<br>
+      🐾 ${materialName("hide",stage.hideQ)} ×${stage.hide}
+      <span class="${okHide?"good":"bad"}">当前 ${materialCount("hide",stage.hideQ)}</span><br>
+      可能符名：${stage.names.join(" / ")}
+     </p>
+     ${!okRank?`<p class="bad">职业品阶不足</p>`:""}
+     <button class="goldBtn" onclick="Game.craftTalisman('${stage.id}')" ${!can?"disabled":""}>制作${stage.name}符箓</button>
+    </div>`;
+   }).join("")}
+  </div>
+ </div>
+
+ <div class="panel">
+  <h2>符箓背包</h2>
+  ${(S.talismans||[]).length?`<div class="grid">
+   ${(S.talismans||[]).map(t=>`
+    <div class="card">
+     <h3 class="gold">${t.name}</h3>
+     <p>效果：${talismanEffectText(t)}</p>
+     <button class="goldBtn" onclick="Game.useTalisman('${t.id}')">使用符箓</button>
+    </div>
+   `).join("")}
+  </div>`:"<p class='muted'>暂无符箓。制作成功后会出现在这里。</p>"}
+ </div>
+
+ <div class="panel">
+  <h2>符箓说明</h2>
+  <div class="grid">
+   <div class="card">
+    <h3>临时大量属性</h3>
+    <p>符箓提供的属性比丹药更高，但只在持续时间内生效。</p>
+   </div>
+   <div class="card">
+    <h3>同类覆盖</h3>
+    <p>同类型符箓不会叠加。比如已有战力符，再使用新的战力符，会覆盖旧效果。</p>
+   </div>
+   <div class="card">
+    <h3>适合冲榜</h3>
+    <p>符箓适合挑战Boss、冲地图、刷副本和冲榜前使用。</p>
+   </div>
+  </div>
+ </div>`;
+}
+function smithHTML(){
+ const isSmith=S.profession?.type==="smith";
+
+ return `<div class="panel">
+  <h2>炼器师</h2>
+  <p class="muted">炼器师可消耗矿石与兽皮打造装备。打造装备拥有专属名字，基础属性略高于普通掉落装备。职业品阶越高，成功率越高，也更容易打造高品质装备。</p>
+
+  ${!isSmith?`<p class="bad">当前职业不是炼器师，无法炼器。</p>`:""}
+
+  <h3>可打造部位</h3>
+  <p class="muted">每个图谱都可以选择打造不同部位。首饰会额外带有气运属性。</p>
+
+  <div class="grid">
+   ${smithStages.map(stage=>{
+    const rate=(smithSuccessRate(stage)*100).toFixed(1);
+    const okRank=(S.profession?.rank||1)>=stage.needRank;
+    const okOre=materialCount("ore",stage.oreQ)>=stage.ore;
+    const okHide=materialCount("hide",stage.hideQ)>=stage.hide;
+    const canBase=isSmith&&okRank&&okOre&&okHide;
+
+    return `<div class="card">
+     <h3>${stage.name}图谱</h3>
+     <p>
+      需要职业品阶：${professionRanks[stage.needRank]}<br>
+      成功率：<b class="gold">${rate}%</b><br>
+      可能品质：<span class="${qualities[stage.minQ].c}">${qualities[stage.minQ].name}</span>
+      ~
+      <span class="${qualities[stage.maxQ].c}">${qualities[stage.maxQ].name}</span><br>
+      消耗：<br>
+      ⛏️ ${materialName("ore",stage.oreQ)} ×${stage.ore}
+      <span class="${okOre?"good":"bad"}">当前 ${materialCount("ore",stage.oreQ)}</span><br>
+      🐾 ${materialName("hide",stage.hideQ)} ×${stage.hide}
+      <span class="${okHide?"good":"bad"}">当前 ${materialCount("hide",stage.hideQ)}</span>
+     </p>
+
+     ${!okRank?`<p class="bad">职业品阶不足</p>`:""}
+
+     <div class="row">
+      <button onclick="Game.craftEquip('${stage.id}','weapon')" ${!canBase?"disabled":""}>打造武器</button>
+      <button onclick="Game.craftEquip('${stage.id}','armor')" ${!canBase?"disabled":""}>打造上衣</button>
+      <button onclick="Game.craftEquip('${stage.id}','pants')" ${!canBase?"disabled":""}>打造裤子</button>
+      <button onclick="Game.craftEquip('${stage.id}','shoes')" ${!canBase?"disabled":""}>打造鞋</button>
+      <button onclick="Game.craftEquip('${stage.id}','helmet')" ${!canBase?"disabled":""}>打造头盔</button>
+      <button class="goldBtn" onclick="Game.craftEquip('${stage.id}','jewelry')" ${!canBase?"disabled":""}>打造首饰</button>
+     </div>
+    </div>`;
+   }).join("")}
+  </div>
+ </div>
+
+ <div class="panel">
+  <h2>炼器说明</h2>
+  <div class="grid">
+   <div class="card">
+    <h3>打造装备更强</h3>
+    <p>炼器装备基础属性约比普通掉落装备高 8%~18%，并随职业品阶略微提升。</p>
+   </div>
+   <div class="card">
+    <h3>失败也有经验</h3>
+    <p>打造失败不会获得装备，但仍然获得职业经验，可用于提升生活职业品阶。</p>
+   </div>
+   <div class="card">
+    <h3>高阶图谱</h3>
+    <p>职业品阶越高，可打造越高阶装备，也更容易出现高品质装备。</p>
+   </div>
+  </div>
+ </div>`;
+}
+function auctionHTML(){
+ const worn=equippedIds();
+
+ const sellableEquips=S.inventory.filter(item=>{
+  return item.crafted && !item.tradeBound && !item.bound && !worn.has(item.id);
+ });
+
+ const sellablePills=Array.isArray(S.pills)?S.pills:[];
+ const sellableTalismans=Array.isArray(S.talismans)?S.talismans:[];
+const sellableBeasts=(S.spiritBeasts||[]).filter(b=>!b.tradeBound && S.activeBeastId!==b.id);
+const sellableNets=[];
+for(let i=0;i<qualities.length;i++){
+ if(beastNetCount(i)>0){
+  sellableNets.push({q:i,count:beastNetCount(i)});
+ }
+}
+
+ return `<div class="panel">
+  <h2>交易行</h2>
+  <p class="muted">交易行使用元宝交易。当前支持：未绑定炼器装备、丹药、符箓。商品24小时后自动过期。</p>
+
+  <div class="stat">
+   <div>元宝<br><span class="big gold">${fmt(S.yuanbao)}</span></div>
+   <div>可上架装备<br><span class="big">${sellableEquips.length}</span></div>
+   <div>可上架丹药<br><span class="big">${sellablePills.length}</span></div>
+   <div>可上架符箓<br><span class="big">${sellableTalismans.length}</span></div>
+   <div>可上架灵兽<br><span class="big">${sellableBeasts.length}</span></div>
+   <div>可上架捕兽网<br><span class="big">${sellableNets.length}</span></div>
+  </div>
+
+  <div class="row" style="margin-top:12px">
+   <select id="auctionFilterType">
+    <option value="all">全部类型</option>
+    <option value="equip">装备</option>
+    <option value="pill">丹药</option>
+    <option value="talisman">符箓</option>
+   <option value="beast">灵兽</option>
+   <option value="net">捕兽网</option>
+   </select>
+   <input id="auctionKeyword" placeholder="搜索名称、卖家、蓝字">
+   <button onclick="Online.loadAuctionListings()">搜索/刷新交易行</button>
+   <button onclick="Online.loadMyAuctionListings()">刷新我的上架</button>
+   <button class="goldBtn" onclick="Online.loadAuctionHistory()">查看成交记录</button>
+  </div>
+ </div>
+
+ <div class="panel">
+  <h2>我要上架：装备</h2>
+  ${sellableEquips.length?`<div class="grid">
+   ${sellableEquips.map(item=>`
+    <div class="card">
+     ${equipLine(item)}
+     <p class="muted">成交后系统收取8%手续费。</p>
+     <input id="auctionPrice_equip_${item.id}" placeholder="上架价格，单位：元宝" type="number">
+     <button class="goldBtn" onclick="Online.createAuctionListing('equip','${item.id}')">上架装备</button>
+    </div>
+   `).join("")}
+  </div>`:"<p class='muted'>暂无可上架装备。只有未穿戴、未绑定的炼器打造装备可以上架。</p>"}
+ </div>
+
+ <div class="panel">
+  <h2>我要上架：丹药</h2>
+  ${sellablePills.length?`<div class="grid">
+   ${sellablePills.map(p=>`
+    <div class="card">
+     <h3 class="gold">${p.name}</h3>
+     <p>效果：${pillEffectText(p)}</p>
+     <input id="auctionPrice_pill_${p.id}" placeholder="上架价格，单位：元宝" type="number">
+     <button class="goldBtn" onclick="Online.createAuctionListing('pill','${p.id}')">上架丹药</button>
+    </div>
+   `).join("")}
+  </div>`:"<p class='muted'>暂无可上架丹药。</p>"}
+ </div>
+
+ <div class="panel">
+  <h2>我要上架：符箓</h2>
+  ${sellableTalismans.length?`<div class="grid">
+   ${sellableTalismans.map(t=>`
+    <div class="card">
+     <h3 class="gold">${t.name}</h3>
+     <p>效果：${talismanEffectText(t)}</p>
+     <input id="auctionPrice_talisman_${t.id}" placeholder="上架价格，单位：元宝" type="number">
+     <button class="goldBtn" onclick="Online.createAuctionListing('talisman','${t.id}')">上架符箓</button>
+    </div>
+   `).join("")}
+  </div>`:"<p class='muted'>暂无可上架符箓。</p>"}
+ </div>
+ <div class="panel">
+  <h2>我要上架：灵兽</h2>
+  ${sellableBeasts.length?`<div class="grid">
+   ${sellableBeasts.map(b=>`
+    <div class="card">
+     <h3><span class="${beastQualityClass(b.q)}">【${beastQualityName(b.q)}】${b.name}</span></h3>
+     <p>
+      类型：${beastTypes[b.type]}<br>
+      等级：${b.level}/100<br>
+      好感度：${b.affinity||0}/100<br>
+      主动技能：${b.activeSkill}<br>
+      被动技能：${b.passiveSkill}<br>
+      状态：<span class="${b.tradeBound?"bad":"good"}">${beastTradeStateText(b)}</span>
+     </p>
+     <input id="auctionPrice_beast_${b.id}" placeholder="上架价格，单位：元宝" type="number">
+     <button class="goldBtn" onclick="Online.createAuctionListing('beast','${b.id}')">上架灵兽</button>
+    </div>
+   `).join("")}
+  </div>`:"<p class='muted'>暂无可上架灵兽。出战过的灵兽会绑定，无法上架。</p>"}
+ </div>
+
+ <div class="panel">
+  <h2>我要上架：捕兽网</h2>
+  ${sellableNets.length?`<div class="grid">
+   ${sellableNets.map(n=>`
+    <div class="card">
+     <h3><span class="${qualities[n.q].c}">${beastNetName(n.q)}</span></h3>
+     <p>数量：${n.count}</p>
+     <input id="auctionPrice_net_${n.q}" placeholder="上架价格，单位：元宝" type="number">
+     <button class="goldBtn" onclick="Online.createAuctionListing('net','${n.q}')">上架1个捕兽网</button>
+    </div>
+   `).join("")}
+  </div>`:"<p class='muted'>暂无可上架捕兽网。</p>"}
+ </div>
+
+ <div class="panel">
+  <h2>交易行商品</h2>
+  <div id="auctionListBox" class="grid">
+   <p class="muted">点击搜索/刷新交易行查看商品。</p>
+  </div>
+ </div>
+
+ <div class="panel">
+  <h2>我的上架</h2>
+  <div id="myAuctionListBox" class="grid">
+   <p class="muted">点击刷新我的上架查看。</p>
+  </div>
+ </div>
+
+ <div class="panel">
+  <h2>成交记录</h2>
+  <div id="auctionHistoryBox" class="grid">
+   <p class="muted">点击查看成交记录。</p>
+  </div>
+ </div>`;
+}
+function beastMasterHTML(){
+ const isBeast=S.profession?.type==="beastmaster";
+
+ return `<div class="panel">
+  <h2>灵兽师</h2>
+  <p class="muted">灵兽师可以使用矿石与兽皮制作捕兽网。捕兽网制作必定成功，是捕捉灵兽的消耗品。</p>
+
+  ${!isBeast?`<p class="bad">当前职业不是灵兽师，无法制作捕兽网。</p>`:""}
+
+  <div class="grid">
+   ${qualities.map((q,i)=>{
+    const needOre=2+i;
+    const needHide=3+i;
+    const okOre=materialCount("ore",i)>=needOre;
+    const okHide=materialCount("hide",i)>=needHide;
+    const can=isBeast&&okOre&&okHide;
+
+    return `<div class="card">
+     <h3><span class="${q.c}">${beastNetName(i)}</span></h3>
+     <p>
+      消耗：<br>
+      ⛏️ ${materialName("ore",i)} ×${needOre}
+      <span class="${okOre?"good":"bad"}">当前 ${materialCount("ore",i)}</span><br>
+      🐾 ${materialName("hide",i)} ×${needHide}
+      <span class="${okHide?"good":"bad"}">当前 ${materialCount("hide",i)}</span><br>
+      拥有：${beastNetCount(i)}
+     </p>
+     <button class="goldBtn" onclick="Game.craftBeastNet(${i})" ${!can?"disabled":""}>制作捕兽网</button>
+    </div>`;
+   }).join("")}
+  </div>
+ </div>`;
+}
+
+function beastArenaHTML(){
+ const beasts=S.spiritBeasts||[];
+
+ return `<div class="panel">
+  <h2>斗兽场</h2>
+  <p class="muted">灵兽进入斗兽场前必须先鉴定资质。斗兽场为回合制战斗，每场战斗会产出完整战报。当前版本为本地斗兽场，后续可升级为全服斗兽排行。</p>
+
+  <div class="stat">
+   <div>拥有灵兽<br><span class="big">${beasts.length}</span></div>
+   <div>已鉴定灵兽<br><span class="big">${beasts.filter(b=>b.appraised).length}</span></div>
+   <div>战报数量<br><span class="big">${(S.beastBattleLogs||[]).length}</span></div>
+  </div>
+ </div>
+
+ <div class="panel">
+  <h2>我的参战灵兽</h2>
+  ${beasts.length?`<div class="grid">
+   ${beasts.map(b=>`
+    <div class="card ${b.appraised?"":"bad"}">
+     <h3><span class="${beastQualityClass(b.q)}">【${beastQualityName(b.q)}】${b.name}</span></h3>
+     <p>
+      类型：${beastTypes[b.type]}<br>
+      等级：${b.level}/100<br>
+      好感度：${b.affinity||0}/100<br>
+      进化次数：${b.evolve||0}<br>
+      资质：${b.appraised?`<span class="${beastAptitudeClass(b.aptitude)}">【${beastAptitudeName(b.aptitude)}】${b.aptitude}</span>`:"<span class='bad'>未鉴定</span>"}<br>
+      属性：<span class="gold">${beastStatsText(b)}</span><br>
+      主动技能：${b.activeSkill}<br>
+      被动技能：${b.passiveSkill}
+     </p>
+     <div class="row">
+      <button class="goldBtn" onclick="Game.appraiseSpiritBeast('${b.id}')" ${b.appraised?"disabled":""}>鉴定资质</button>
+      <button onclick="Game.challengeBeastArena('${b.id}')" ${!b.appraised?"disabled":""}>进入斗兽场</button>
+     </div>
+    </div>
+   `).join("")}
+  </div>`:"<p class='muted'>你还没有灵兽。请先前往灵兽幻境捕捉灵兽。</p>"}
+ </div>
+
+ <div class="panel">
+ <div class="panel">
+  <h2>全服斗兽排行</h2>
+  <p class="muted">选择一只已鉴定资质的灵兽配置为防守灵兽。挑战排名附近五名玩家，胜利可交换排名并获得斗兽币。</p>
+
+  <div class="stat">
+   <div>斗兽币<br><span class="big gold">${fmt(S.beastCoins||0)}</span></div>
+  </div>
+
+  <div class="grid">
+   ${beasts.filter(b=>b.appraised).map(b=>`
+    <div class="card">
+     <h3><span class="${beastQualityClass(b.q)}">【${beastQualityName(b.q)}】${b.name}</span></h3>
+     <p>
+      等级：${b.level}/100<br>
+      资质：${b.aptitude}<br>
+      属性：${beastStatsText(b)}
+     </p>
+     <button class="goldBtn" onclick="Online.saveBeastArenaConfig('${b.id}')">设为全服斗兽防守灵兽</button>
+    </div>
+   `).join("")}
+  </div>
+
+  <div class="row" style="margin-top:12px">
+   <button onclick="Online.loadBeastArenaNearby()">刷新附近对手</button>
+   <button onclick="Online.loadBeastArenaBattles()">刷新全服斗兽战报</button>
+  </div>
+
+  <h3>附近五名对手</h3>
+  <div id="beastArenaNearbyBox" class="grid">
+   <p class="muted">点击刷新附近对手。</p>
+  </div>
+ </div>
+
+ <div class="panel">
+  <h2>斗兽币商店</h2>
+  <p class="muted">斗兽币可兑换基础材料。当前开放劣质到卓越材料兑换。</p>
+  <div class="grid">
+   ${["ore","herb","hide"].map(type=>[0,1,2,3,4].map(q=>`
+    <div class="card">
+     <h3>${materialIcon(type)} ${materialName(type,q)}</h3>
+     <p>消耗斗兽币兑换基础材料。</p>
+     <button class="goldBtn" onclick="Online.exchangeBeastCoin('${type}',${q})">兑换</button>
+    </div>
+   `).join("")).join("")}
+  </div>
+ </div>
+
+ <div class="panel">
+  <h2>全服斗兽战报</h2>
+  <div id="beastArenaBattleBox" class="log">
+   <p class="muted">暂无全服斗兽战报。</p>
+  </div>
+ </div>
+  <h2>最近战报</h2>
+  <div class="log">
+   ${(S.beastBattleLogs||[]).length?(S.beastBattleLogs||[]).map(r=>`
+    <p>
+     <span class="${r.win?"good":"bad"}">【${r.win?"胜利":"失败"}】</span>
+     ${new Date(r.time).toLocaleString()}<br>
+     ${r.beastName} 对战 ${r.enemyName}<br>
+     ${Array.isArray(r.log)?r.log.join("<br>"):"无战报"}
+    </p>
+   `).join(""):"<p class='muted'>暂无斗兽场战报。</p>"}
+  </div>
+ </div>`;
+}
+function beastHTML(){
+ const encounter=S.beastEncounter;
+ const active=activeSpiritBeast();
+
+ return `<div class="panel">
+  <h2>灵兽</h2>
+  <p class="muted">灵兽分为战斗型和辅助型。战斗型偏向战力和击杀速度，辅助型偏向经验、元宝和掉率。后续斗兽场会使用灵兽主动技能和被动技能。</p>
+
+  <div class="stat">
+   <div>拥有灵兽<br><span class="big">${(S.spiritBeasts||[]).length}</span></div>
+   <div>当前出战<br><span class="big gold">${active?active.name:"无"}</span></div>
+   <div>当前幻境遭遇<br><span class="big">${encounter?encounter.name:"无"}</span></div>
+  </div>
+ </div>
+
+ <div class="panel">
+  <h2>当前遭遇</h2>
+  ${encounter?`
+   <div class="card selected">
+    <h3><span class="${beastQualityClass(encounter.q)}">【${beastQualityName(encounter.q)}】${encounter.name}</span></h3>
+    <p>
+     类型：${beastTypes[encounter.type]}<br>
+     主动技能：${encounter.activeSkill}<br>
+     被动技能：${encounter.passiveSkill}
+    </p>
+
+    <h3>使用捕兽网</h3>
+    <div class="grid">
+     ${qualities.map((q,i)=>{
+      const count=beastNetCount(i);
+      const chance=beastCaptureChance(i,encounter.q);
+
+      return `<div class="card">
+       <h3><span class="${q.c}">${beastNetName(i)}</span></h3>
+       <p>
+        拥有：${count}<br>
+        预计成功率：<b class="gold">${(chance*100).toFixed(1)}%</b>
+       </p>
+       <button class="goldBtn" onclick="Game.captureSpiritBeast(${i})" ${count<=0?"disabled":""}>使用此网捕捉</button>
+      </div>`;
+     }).join("")}
+    </div>
+   </div>
+  `:"<p class='muted'>当前没有遭遇灵兽。请进入灵兽幻境挂机，灵兽幻境有概率遭遇灵兽。</p>"}
+ </div>
+
+ <div class="panel">
+  <h2>捕兽网背包</h2>
+  <div class="grid">
+   ${qualities.map((q,i)=>`
+    <div class="card">
+     <h3><span class="${q.c}">${beastNetName(i)}</span></h3>
+     <p>数量：<b class="gold">${beastNetCount(i)}</b></p>
+    </div>
+   `).join("")}
+  </div>
+ </div>
+
+ <div class="panel">
+  <h2>我的灵兽</h2>
+  ${(S.spiritBeasts||[]).length?`<div class="grid">
+   ${(S.spiritBeasts||[]).map(b=>`
+    <div class="card ${S.activeBeastId===b.id?"selected":""}">
+     <h3><span class="${beastQualityClass(b.q)}">【${beastQualityName(b.q)}】${b.name}</span></h3>
+     <p>
+      类型：${beastTypes[b.type]}<br>
+      等级：${b.level}/100<br>
+      经验：${fmt(b.exp||0)} / ${fmt(beastExpNeed(b.level||1))}<br>
+      好感度：${b.affinity||0}/100，技能效果倍率：${(beastAffinityMult(b)*100).toFixed(0)}%<br>
+进化次数：${b.evolve||0}<br>
+资质：${b.appraised?`【${beastAptitudeName(b.aptitude)}】${b.aptitude}`:"未鉴定"}<br>
+状态：<span class="${b.tradeBound?"bad":"good"}">${beastTradeStateText(b)}</span><br>
+主动技能：${b.activeSkill}<br>
+被动技能：${b.passiveSkill}<br>
+出战效果：<span class="gold">${beastEffectText(b)}</span>
+     </p>
+     <div class="row">
+      <button class="goldBtn" onclick="Game.setActiveSpiritBeast('${b.id}')">${S.activeBeastId===b.id?"已出战":"出战"}</button>
+<button onclick="Game.feedSpiritBeast('${b.id}','ore')">喂矿石</button>
+<button onclick="Game.feedSpiritBeast('${b.id}','herb')">喂草药</button>
+<button onclick="Game.feedSpiritBeast('${b.id}','hide')">喂兽皮</button>
+<button class="goldBtn" onclick="Game.feedBeastAffinity('${b.id}')" ${S.yuanbao<100||((b.affinity||0)>=100)?"disabled":""}>元宝喂养好感</button>
+<button class="danger" onclick="Game.evolveSpiritBeast('${b.id}')" ${b.level<100||(b.q>=beastQualities.length-1)?"disabled":""}>进化</button>
+     </div>
+    </div>
+   `).join("")}
+  </div>`:"<p class='muted'>你还没有灵兽。进入灵兽幻境遭遇灵兽后，可使用捕兽网捕捉。</p>"}
+ </div>`;
+}
+function marketHTML(){
+ refreshMarket(false);
+
+ const blocked=marketBlocked();
+ const merchants=S.market?.merchants||[];
+ const black=S.market?.blackMerchant;
+
+ return `<div class="panel">
+  <h2>市场</h2>
+  <p class="muted">市场每10分钟刷新一批商人。商人会随机买卖矿石、草药、兽皮，价格会浮动。市场使用铜币交易。</p>
+
+  <div class="stat">
+   <div>元宝<br><span class="big gold">${fmt(S.yuanbao)}</span></div>
+   <div>铜币<br><span class="big gold">${fmt(S.copper||0)}</span></div>
+   <div>下次刷新<br><span class="big">${marketRefreshLeft()}</span></div>
+   <div>市场状态<br><span class="big ${blocked?"bad":"good"}">${blocked?"小黑屋中":"正常"}</span></div>
+  </div>
+
+  ${blocked?`<div class="notice"><h3 class="bad">小黑屋惩罚中</h3><p>你因为与黑商交易被抓，暂时无法使用市场功能。剩余时间：<b class="bad">${marketBlockText()}</b></p></div>`:""}
+
+  <div class="row" style="margin-top:12px">
+   <button onclick="Game.forceRefreshMarket()" ${blocked||S.yuanbao<200?"disabled":""}>手动刷新市场 · 200元宝</button>
+  </div>
+ </div>
+
+ <div class="panel">
+  <h2>官方钱庄</h2>
+  <p class="muted">官方固定兑换比例：<b>1元宝 = ${BANK_RATE}铜币</b>。可双向兑换，无风险。</p>
+
+  <div class="grid">
+   <div class="card">
+    <h3>元宝兑换铜币</h3>
+    <p>适合缺铜币时使用。</p>
+    <div class="row">
+     <button onclick="Game.officialYuanbaoToCopper(10)" ${blocked||S.yuanbao<10?"disabled":""}>10元宝 → ${fmt(10*BANK_RATE)}铜币</button>
+     <button onclick="Game.officialYuanbaoToCopper(100)" ${blocked||S.yuanbao<100?"disabled":""}>100元宝 → ${fmt(100*BANK_RATE)}铜币</button>
+     <button class="goldBtn" onclick="Game.officialYuanbaoToCopper(1000)" ${blocked||S.yuanbao<1000?"disabled":""}>1000元宝 → ${fmt(1000*BANK_RATE)}铜币</button>
+    </div>
+   </div>
+
+   <div class="card">
+    <h3>铜币兑换元宝</h3>
+    <p>适合铜币充足时使用。</p>
+    <div class="row">
+     <button onclick="Game.officialCopperToYuanbao(10)" ${blocked||(S.copper||0)<10*BANK_RATE?"disabled":""}>${fmt(10*BANK_RATE)}铜币 → 10元宝</button>
+     <button onclick="Game.officialCopperToYuanbao(100)" ${blocked||(S.copper||0)<100*BANK_RATE?"disabled":""}>${fmt(100*BANK_RATE)}铜币 → 100元宝</button>
+     <button class="goldBtn" onclick="Game.officialCopperToYuanbao(1000)" ${blocked||(S.copper||0)<1000*BANK_RATE?"disabled":""}>${fmt(1000*BANK_RATE)}铜币 → 1000元宝</button>
+    </div>
+   </div>
+  </div>
+ </div>
+
+ <div class="panel">
+  <h2>今日商人</h2>
+  <p class="muted">每次刷新3个商人。商人可能收购材料，也可能出售材料。</p>
+
+  <div class="grid">
+   ${merchants.map(m=>{
+    const mat=materialName(m.matType,m.q);
+    const icon=materialIcon(m.matType);
+    const have=materialCount(m.matType,m.q);
+
+    if(m.action==="buy"){
+     return `<div class="card">
+      <h3>${m.name}</h3>
+      <p>
+       类型：<span class="good">收购材料</span><br>
+       收购：${icon} <span class="${qualities[m.q].c}">${mat}</span><br>
+       单价：<b class="gold">${fmt(m.price)}铜币</b><br>
+       还收：${fmt(m.stock)}个<br>
+       你拥有：${fmt(have)}个
+      </p>
+      <div class="row">
+       <button onclick="Game.marketSellMaterial('${m.id}',1)" ${blocked||have<1||m.stock<1?"disabled":""}>卖1个</button>
+       <button onclick="Game.marketSellMaterial('${m.id}',10)" ${blocked||have<1||m.stock<1?"disabled":""}>卖10个</button>
+       <button class="goldBtn" onclick="Game.marketSellMaterial('${m.id}',9999)" ${blocked||have<1||m.stock<1?"disabled":""}>全部出售</button>
+      </div>
+     </div>`;
+    }
+
+    return `<div class="card">
+     <h3>${m.name}</h3>
+     <p>
+      类型：<span class="gold">出售材料</span><br>
+      出售：${icon} <span class="${qualities[m.q].c}">${mat}</span><br>
+      单价：<b class="gold">${fmt(m.price)}铜币</b><br>
+      库存：${fmt(m.stock)}个<br>
+      你拥有铜币：${fmt(S.copper||0)}
+     </p>
+     <div class="row">
+      <button onclick="Game.marketBuyMaterial('${m.id}',1)" ${blocked||(S.copper||0)<m.price||m.stock<1?"disabled":""}>买1个</button>
+      <button onclick="Game.marketBuyMaterial('${m.id}',10)" ${blocked||(S.copper||0)<m.price||m.stock<1?"disabled":""}>买10个</button>
+      <button class="goldBtn" onclick="Game.marketBuyMaterial('${m.id}',9999)" ${blocked||(S.copper||0)<m.price||m.stock<1?"disabled":""}>买满</button>
+     </div>
+    </div>`;
+   }).join("")}
+  </div>
+ </div>
+
+ <div class="panel">
+  <h2>市场角落</h2>
+  <p class="muted">这里偶尔会刷新黑商。黑商兑换比例更划算，但每次交易有10%概率被关小黑屋，1小时无法使用市场功能。</p>
+
+  ${black?`
+   <div class="card selected">
+    <h3 class="bad">${black.name}</h3>
+    <p>黑商报价：<b class="gold">${black.desc}</b></p>
+    <p class="bad">风险：交易后有10%概率被关小黑屋1小时。</p>
+    <button class="danger" onclick="Game.useBlackMerchant()" ${blocked?"disabled":""}>冒险交易</button>
+   </div>
+  `:`<p class="muted">当前没有黑商。下次市场刷新时可能出现。</p>`}
+ </div>
+
+ <div class="panel">
+  <h2>材料总览</h2>
+  <p class="muted">这里显示你当前拥有的可交易材料。</p>
+  ${materialBagHTML()}
+ </div>`;
+}
+function lifeHTML(){
+ const p=S.profession||{type:"",rank:1,exp:0,chosenRebirth:0};
+ const can=canChooseProfession();
+ const chosenThis=(S.rebirth||0)>0 && (p.chosenRebirth||0)===(S.rebirth||0);
+
+ return `<div class="panel">
+  <h2>生活职业</h2>
+  <p class="muted">转生后可以选择生活职业。每次转生只能选择一次职业，选择后需要等下一次转生才能重新选择。</p>
+
+  <div class="stat">
+   <div>当前转生<br><span class="big">${S.rebirth||0}</span></div>
+   <div>当前职业<br><span class="big gold">${professionName()}</span></div>
+   <div>职业品阶<br><span class="big">${professionRankName()}</span></div>
+   <div>职业经验<br><span class="big">${fmt(p.exp||0)}</span></div>
+   <div>本次转生状态<br><span class="big ${can?"good":"bad"}">${can?"可选择职业":((S.rebirth||0)<=0?"未转生":"已选择")}</span></div>
+   <div>铜币<br><span class="big gold">${fmt(S.copper||0)}</span></div>
+  </div>
+
+  <div class="notice">
+   <h3>职业选择</h3>
+   ${(S.rebirth||0)<=0?`<p class="bad">你还没有转生。需要至少完成1次转生后，才能选择生活职业。</p>`:""}
+   ${chosenThis?`<p class="good">你本次转生已经选择了【${professionName()}】。下次转生后可以重新选择。</p>`:""}
+   ${can?`<p class="gold">你本次转生还没有选择职业，现在可以三选一。</p>`:""}
+   <div class="grid">
+    ${Object.entries(professionTypes).map(([id,info])=>`
+     <div class="card ${p.type===id?"selected":""}">
+      <h3>${info.name}</h3>
+      <p>${info.desc}</p>
+      <button class="goldBtn" onclick="Game.chooseProfession('${id}')" ${!can?"disabled":""}>选择${info.name}</button>
+     </div>
+    `).join("")}
+   </div>
+  </div>
+ </div>
+
+ <div class="panel">
+  <h2>材料背包</h2>
+  <p class="muted">主世界地图挂机会掉落矿石、草药、兽皮。材料品质会随地图阶级提升而提升。</p>
+ </div>
+
+ ${materialBagHTML()}
+
+  ${professionDetailHTML()}
+
+  <div class="panel">
+  <h2>职业系统说明</h2>
+  <div class="grid">
+   <div class="card">
+    <h3>炼丹师</h3>
+    <p>消耗草药和兽皮炼制丹药。丹药可永久增加少量属性，适合长期成长。</p>
+   </div>
+   <div class="card">
+    <h3>炼器师</h3>
+    <p>消耗矿石和兽皮打造装备。打造装备拥有专属名字，基础属性略高于普通掉落装备。</p>
+   </div>
+   <div class="card">
+    <h3>符箓师</h3>
+    <p>消耗兽皮制作符箓。符箓提供临时大量属性，适合冲榜、挑战Boss和短时间爆发。</p>
+   </div>
+  </div>
+ </div>`;
+}
 function arenaHTML(){
  arenaResetDaily();
  const selected=S.arenaSkills||[];
@@ -1279,7 +4390,7 @@ function guildHTML(){
 }
 function giftHTML(){return `<div class="panel"><h2>礼包中心</h2><p class="muted">兑换码礼包放在独立页面，不受主页动态刷新影响。输入指定口令可获得唯一伴生法器，重置游戏不会清空。</p><div class="row"><input id="codeGiftInput" placeholder="请输入兑换码"><button class="goldBtn" onclick="Game.claimCodeGift()" ${PERM.artifactClaimed?"disabled":""}>领取兑换码礼包</button></div><p>${PERM.artifactClaimed?"<span class='good'>已领取：炫彩传奇·山雨牛逼伴生法器</span>":"口令提示：山雨牛逼"}</p></div><div class="panel"><h2>新手礼包</h2><p>8888元宝、双倍经验丹×1、VIP副本体验次数×3、锻造石×300。</p><button class="goldBtn" onclick="Game.claimGift()" ${S.gift?"disabled":""}>${S.gift?"已领取":"领取新手礼包"}</button></div><div class="panel"><h2>补偿礼包</h2><p>500,000元宝、黑万能碎片×1。</p><button class="goldBtn" onclick="Game.claimCompGift()" ${S.compGift?"disabled":""}>${S.compGift?"已领取":"领取补偿礼包"}</button></div>`}
 
-syncArtifact();refreshTasks();calcOffline();render();
+syncArtifact();refreshTasks();applyBalance2Migration();calcOffline();render();
 setInterval(()=>{
  tick(1,false);
  S.last=Date.now();
@@ -1289,7 +4400,7 @@ setInterval(()=>{
  localStorage.setItem(SAVE_KEY,JSON.stringify(S));
 },1000);
 
-return{tab,save,reset,rebirth,rerollFate,toggleArenaSkill,clearArenaSkills,arenaSimulate,claimArenaReward,toggleAntiAddiction,exchangeGuildToken,claimCodeGift,claimGift,claimCompGift,claimRankingReward,usePill,useMultiPill,quickGain,selectMap,enterTrialVip,challengeBoss,challengeFengyou,wear,enhance,sell,sellUnequipped,bestEquip,sortInventory,drawEquip,drawPartner,scratchCard,carry,togglePartnerView,toggleAutoBreak,setAutoBreakQuality,setDropBreakQuality,toggleHideKillLog,sortPartners,claimVipGift,exchangeUniversalShard,exchangeAllUniversalShard,breakPartnerShards,useUniversalShard,refreshTasks:()=>{refreshTasks(true);render()},completeTask,addSystemLog:(text)=>{log(text);if(!shouldSkipAutoRender())render();},
+return{tab,save,reset,rebirth,rerollFate,chooseProfession,craftBeastNet,captureSpiritBeast,setActiveSpiritBeast,feedSpiritBeast,feedBeastAffinity,evolveSpiritBeast,appraiseSpiritBeast,challengeBeastArena,refinePill,usePillItem,craftEquip,craftTalisman,useTalisman,officialYuanbaoToCopper,officialCopperToYuanbao,marketBuyMaterial,marketSellMaterial,useBlackMerchant,forceRefreshMarket,toggleArenaSkill,clearArenaSkills,arenaSimulate,claimArenaReward,toggleAntiAddiction,exchangeGuildToken,claimCodeGift,claimGift,claimCompGift,claimRankingReward,usePill,useMultiPill,quickGain,selectMap,enterTrialVip,challengeBoss,challengeFengyou,wear,enhance,sell,sellUnequipped,bestEquip,sortInventory,drawEquip,drawPartner,scratchCard,carry,togglePartnerView,toggleAutoBreak,setAutoBreakQuality,setDropBreakQuality,toggleHideKillLog,sortPartners,claimVipGift,exchangeUniversalShard,exchangeAllUniversalShard,breakPartnerShards,useUniversalShard,refreshTasks:()=>{refreshTasks(true);render()},completeTask,addSystemLog:(text)=>{log(text);if(!shouldSkipAutoRender())render();},
 getPower:()=>power(),
 getLevel:()=>S.level,
 getVip:()=>vipLevel(),
@@ -1301,7 +4412,11 @@ importSave:(data)=>{
   localStorage.setItem(SAVE_KEY,JSON.stringify(S));
   render();
 },
-getSaveTime:()=>S.last||0
+getSaveTime:()=>S.last||0,
+setCloudUpdatedAt:(t)=>{
+  S.cloudUpdatedAt=Math.max(0,Math.floor(Number(t)||0));
+  localStorage.setItem(SAVE_KEY,JSON.stringify(S));
+}
 };
 })();
 </script>
@@ -1429,11 +4544,14 @@ this.inGuild = false;
   },
 async uploadSave() {
   if (!this.token) return;
+
   if (typeof Game === "undefined" || !Game.exportSave) {
     this.status("游戏存档接口未加载");
     return;
   }
+
   const save = Game.exportSave();
+
   const res = await fetch("/api/save", {
     method: "POST",
     headers: {
@@ -1442,13 +4560,27 @@ async uploadSave() {
     },
     body: JSON.stringify({
       save,
-      updatedAt: Date.now()
+      baseUpdatedAt: save.cloudUpdatedAt || 0
     })
   });
+
+  const data = await res.json().catch(() => ({}));
+
   if (!res.ok) {
-    this.status("云存档上传失败");
+    if (res.status === 409) {
+      this.status("云端存档更新，已阻止旧存档覆盖");
+      alert(data.error || "云端存档比本地新，请先读取云端存档。");
+      return;
+    }
+
+    this.status(data.error || "云存档上传失败");
     return;
   }
+
+  if (data.updatedAt && typeof Game !== "undefined" && Game.setCloudUpdatedAt) {
+    Game.setCloudUpdatedAt(data.updatedAt);
+  }
+
   this.status("已登录：" + this.username + "，云存档已同步");
 },
 async downloadSave() {
@@ -1473,7 +4605,16 @@ async downloadSave() {
   }
   const useCloud = confirm("发现云端存档，是否加载并覆盖当前本地存档？");
 if (useCloud) {
+  if (data.save) {
+    data.save.cloudUpdatedAt = data.updatedAt || data.save.cloudUpdatedAt || 0;
+  }
+
   Game.importSave(data.save);
+
+  if (data.updatedAt && Game.setCloudUpdatedAt) {
+    Game.setCloudUpdatedAt(data.updatedAt);
+  }
+
   this.status("已登录：" + this.username + "，云存档已加载");
   alert("已加载云端存档");
 } else {
@@ -2263,6 +5404,555 @@ async claimArenaDailyReward() {
   this.loadArenaMe();
   this.loadArenaNearby();
   this.loadArenaBattles();
+},
+beastItemHTML(beast) {
+  if (!beast) return "<p class='bad'>灵兽数据错误</p>";
+
+  const qs = ["普通","优秀","精良","卓越","传说","神话","至臻","炫彩","神","黑","臻彩传奇"];
+  const cs = ["pq1","pq2","pq3","pq4","pq5","pq6","pq7","pq8","pq9","pq10","pq11"];
+  const typeName = beast.type === "battle" ? "战斗型" : "辅助型";
+
+  return `
+    <p>
+      <span class="${cs[beast.q] || "pq1"}"><b>【${qs[beast.q] || "普通"}】${this.escapeHTML(beast.name || "未知灵兽")}</b></span><br>
+      类型：${typeName}<br>
+      等级：${beast.level || 1}/100<br>
+      资质：${beast.aptitude || 0}<br>
+      好感：${beast.affinity || 0}/100<br>
+      主动：${this.escapeHTML(beast.activeSkill || "")}<br>
+      被动：${this.escapeHTML(beast.passiveSkill || "")}
+    </p>
+  `;
+},
+
+async saveBeastArenaConfig(beastId) {
+  if (!this.token) {
+    alert("请先登录账号");
+    return;
+  }
+
+  await this.uploadSave();
+
+  const res = await fetch("/api/beast-arena/config", {
+    method: "POST",
+    headers: this.authHeaders(),
+    body: JSON.stringify({ beastId })
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    alert(data.error || "配置失败");
+    return;
+  }
+
+  alert(data.message || "配置成功");
+
+  this.loadBeastArenaNearby();
+  this.loadBeastArenaBattles();
+},
+
+async loadBeastArenaNearby() {
+  const box = document.getElementById("beastArenaNearbyBox");
+  if (!box) return;
+
+  if (!this.token) {
+    box.innerHTML = "<p class='bad'>请先登录账号。</p>";
+    return;
+  }
+
+  const res = await fetch("/api/beast-arena/nearby", {
+    headers: {
+      "Authorization": "Bearer " + this.token
+    }
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    box.innerHTML = `<p class='bad'>${this.escapeHTML(data.error || "请先配置斗兽排行灵兽")}</p>`;
+    return;
+  }
+
+  const rows = data.rows || [];
+
+  if (!rows.length) {
+    box.innerHTML = "<p class='muted'>附近暂无可挑战目标。</p>";
+    return;
+  }
+
+  box.innerHTML = rows.map(r => `
+    <div class="card">
+      <h3>#${r.rank} ${this.escapeHTML(r.username)}</h3>
+      ${this.beastItemHTML(r.beast)}
+      <button class="goldBtn" onclick="Online.challengeBeastArenaRank(${r.userId})">挑战</button>
+    </div>
+  `).join("");
+},
+
+async challengeBeastArenaRank(targetUserId) {
+  if (!this.token) {
+    alert("请先登录账号");
+    return;
+  }
+
+  const res = await fetch("/api/beast-arena/challenge", {
+    method: "POST",
+    headers: this.authHeaders(),
+    body: JSON.stringify({ targetUserId })
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    alert(data.error || "挑战失败");
+    return;
+  }
+
+  if (data.save && typeof Game !== "undefined" && Game.importSave) {
+    Game.importSave(data.save);
+  }
+
+  alert(
+    (data.win ? "挑战胜利！" : "挑战失败！") +
+    "\n排名：" +
+    data.attackerRankBefore +
+    " → " +
+    data.attackerRankAfter +
+    "\n获得斗兽币：" +
+    data.reward +
+    "\n今日次数：" +
+    data.used +
+    "/" +
+    data.limit
+  );
+
+  this.loadBeastArenaNearby();
+  this.loadBeastArenaBattles();
+},
+
+async loadBeastArenaBattles() {
+  const box = document.getElementById("beastArenaBattleBox");
+  if (!box) return;
+
+  if (!this.token) {
+    box.innerHTML = "<p class='bad'>请先登录账号。</p>";
+    return;
+  }
+
+  const res = await fetch("/api/beast-arena/battles", {
+    headers: {
+      "Authorization": "Bearer " + this.token
+    }
+  });
+
+  const rows = await res.json().catch(() => []);
+
+  if (!res.ok || !Array.isArray(rows)) {
+    box.innerHTML = "<p class='bad'>读取战报失败。</p>";
+    return;
+  }
+
+  if (!rows.length) {
+    box.innerHTML = "<p class='muted'>暂无全服斗兽战报。</p>";
+    return;
+  }
+
+  box.innerHTML = rows.map(r => `
+    <p>
+      <span class="${r.win ? "good" : "bad"}">【${r.win ? "胜利" : "失败"}】</span>
+      ${new Date(r.createdAt).toLocaleString()}<br>
+      ${this.escapeHTML(r.attackerUsername)} VS ${this.escapeHTML(r.defenderUsername)}<br>
+      奖励斗兽币：${r.reward}<br>
+      ${(Array.isArray(r.log) ? r.log : []).map(x => this.escapeHTML(x)).join("<br>")}
+    </p>
+  `).join("");
+},
+
+async exchangeBeastCoin(type, q) {
+  if (!this.token) {
+    alert("请先登录账号");
+    return;
+  }
+
+  const res = await fetch("/api/beast-arena/shop", {
+    method: "POST",
+    headers: this.authHeaders(),
+    body: JSON.stringify({ type, q })
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    alert(data.error || "兑换失败");
+    return;
+  }
+
+  if (data.save && typeof Game !== "undefined" && Game.importSave) {
+    Game.importSave(data.save);
+  }
+
+  alert(data.message || "兑换成功");
+},
+auctionItemHTML(item, itemType = "equip") {
+  if (!item) return "<p class='bad'>物品数据错误</p>";
+
+  if (itemType === "pill") {
+    return `
+      <p>
+        <span class="gold"><b>${this.escapeHTML(item.name || "未知丹药")}</b></span><br>
+        类型：丹药<br>
+        效果：${this.escapeHTML(this.simplePillEffectText(item))}
+      </p>
+    `;
+  }
+
+  if (itemType === "talisman") {
+    return `
+      <p>
+        <span class="gold"><b>${this.escapeHTML(item.name || "未知符箓")}</b></span><br>
+        类型：符箓<br>
+        效果：${this.escapeHTML(this.simpleTalismanEffectText(item))}
+      </p>
+    `;
+  }
+  if (itemType === "beast") {
+    const qs = ["普通","优秀","精良","卓越","传说","神话","至臻","炫彩","神","黑","臻彩传奇"];
+    const cs = ["pq1","pq2","pq3","pq4","pq5","pq6","pq7","pq8","pq9","pq10","pq11"];
+    const typeName = item.type === "battle" ? "战斗型" : "辅助型";
+
+    return `
+      <p>
+        <span class="${cs[item.q] || "pq1"}"><b>【${qs[item.q] || "普通"}】${this.escapeHTML(item.name || "未知灵兽")}</b></span><br>
+        类型：灵兽 · ${typeName}<br>
+        等级：${item.level || 1}/100<br>
+        好感度：${item.affinity || 0}/100<br>
+        主动技能：${this.escapeHTML(item.activeSkill || "")}<br>
+        被动技能：${this.escapeHTML(item.passiveSkill || "")}
+      </p>
+    `;
+  }
+
+  if (itemType === "net") {
+    const qualityNames = ["劣质","普通","优秀","精良","卓越","传说","神话","传奇","炫彩传说","炫彩神话","炫彩传奇","臻彩传说","臻彩神话","臻彩传奇"];
+    const qClass = ["q0","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","q12","q13"][item.q] || "q1";
+
+    return `
+      <p>
+        <span class="${qClass}"><b>${qualityNames[item.q] || "未知"}捕兽网</b></span><br>
+        类型：捕兽网<br>
+        数量：1
+      </p>
+    `;
+  }
+
+  const qClass = ["q0","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","q12","q13"][item.q] || "q1";
+  const qualityNames = ["劣质","普通","优秀","精良","卓越","传说","神话","传奇","炫彩传说","炫彩神话","炫彩传奇","臻彩传说","臻彩神话","臻彩传奇"];
+  const slotNames = {weapon:"武器",armor:"上衣",pants:"裤子",shoes:"鞋",helmet:"头盔",jewelry:"首饰"};
+
+  const affix = item.affix
+    ? `<br><span class="good">蓝字：${this.escapeHTML(item.affix.name)}｜${this.escapeHTML(item.affix.desc)}</span>`
+    : "";
+
+  return `
+    <p>
+      <span class="${qClass}"><b>${this.escapeHTML(item.name)} +${item.lv || 0}</b></span><br>
+      类型：装备<br>
+      ${slotNames[item.slot] || item.slot} · ${qualityNames[item.q] || "未知"} · 阶级${item.tier || 1}<br>
+      <span class="gold">由炼器大师：${this.escapeHTML(item.craftedBy || "未知")} 打造</span>
+      ${affix}
+    </p>
+  `;
+},
+
+simplePillEffectText(item) {
+  const names = {
+    power: "永久战力",
+    exp: "永久经验",
+    yb: "永久元宝",
+    gear: "永久掉率",
+    kill: "永久击杀速度"
+  };
+
+  const stat = item.stat || "";
+  const value = Number(item.value) || 0;
+
+  if (stat === "power") {
+    return `${names[stat] || stat} +${Math.floor(value)}`;
+  }
+
+  return `${names[stat] || stat} +${(value * 100).toFixed(2)}%`;
+},
+
+simpleTalismanEffectText(item) {
+  const names = {
+    power: "战力",
+    exp: "经验收益",
+    yb: "元宝收益",
+    gear: "装备掉率",
+    kill: "击杀速度"
+  };
+
+  const value = Number(item.value) || 0;
+  const min = Math.floor((Number(item.duration) || 0) / 60000);
+
+  let timeText = "";
+
+  if (min < 60) {
+    timeText = `${min}分钟`;
+  } else {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    timeText = m ? `${h}小时${m}分钟` : `${h}小时`;
+  }
+
+  return `${names[item.type] || item.type} +${(value * 100).toFixed(1)}%，持续 ${timeText}`;
+},
+
+auctionTypeName(type) {
+  if (type === "equip") return "装备";
+  if (type === "pill") return "丹药";
+  if (type === "talisman") return "符箓";
+  if (type === "beast") return "灵兽";
+  if (type === "net") return "捕兽网";
+  return type || "未知";
+},
+
+auctionLeftText(expireAt) {
+  const left = Math.max(0, Math.floor((Number(expireAt) - Date.now()) / 1000));
+
+  if (left <= 0) return "即将过期";
+
+  const h = Math.floor(left / 3600);
+  const m = Math.floor((left % 3600) / 60);
+
+  if (h > 0) return `${h}小时${m}分钟`;
+
+  return `${m}分钟`;
+},
+
+async createAuctionListing(itemType, itemId) {
+  if (!this.token) {
+    alert("请先登录账号");
+    return;
+  }
+
+  const input = document.getElementById("auctionPrice_" + itemType + "_" + itemId);
+  const price = Math.floor(Number(input?.value) || 0);
+
+  if (price <= 0) {
+    alert("请输入正确的上架价格");
+    return;
+  }
+
+  await this.uploadSave();
+
+  const res = await fetch("/api/auction/list", {
+    method: "POST",
+    headers: this.authHeaders(),
+    body: JSON.stringify({ itemType, itemId, price })
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    alert(data.error || "上架失败");
+    return;
+  }
+
+  if (data.save && typeof Game !== "undefined" && Game.importSave) {
+    Game.importSave(data.save);
+  }
+
+  alert(data.message || "上架成功");
+
+  this.loadAuctionListings();
+  this.loadMyAuctionListings();
+},
+
+async loadAuctionListings() {
+  const box = document.getElementById("auctionListBox");
+  if (!box) return;
+
+  const type = document.getElementById("auctionFilterType")?.value || "all";
+  const keyword = document.getElementById("auctionKeyword")?.value.trim() || "";
+
+  const res = await fetch(
+    "/api/auction/listings?type=" +
+    encodeURIComponent(type) +
+    "&keyword=" +
+    encodeURIComponent(keyword)
+  );
+
+  const rows = await res.json().catch(() => []);
+
+  if (!res.ok || !Array.isArray(rows)) {
+    box.innerHTML = "<p class='bad'>读取交易行失败</p>";
+    return;
+  }
+
+  if (!rows.length) {
+    box.innerHTML = "<p class='muted'>交易行暂无符合条件的商品。</p>";
+    return;
+  }
+
+  box.innerHTML = rows.map(r => `
+    <div class="card">
+      <h3>#${r.id} ${this.escapeHTML(r.sellerUsername)} <span class="tag">${this.auctionTypeName(r.itemType)}</span></h3>
+      ${this.auctionItemHTML(r.item, r.itemType)}
+      <p>
+        价格：<b class="gold">${Math.floor(r.price).toLocaleString()} 元宝</b><br>
+        剩余：${this.auctionLeftText(r.expireAt)}
+      </p>
+      <button class="goldBtn" onclick="Online.buyAuctionListing(${r.id})">购买</button>
+    </div>
+  `).join("");
+},
+
+async loadMyAuctionListings() {
+  const box = document.getElementById("myAuctionListBox");
+  if (!box) return;
+
+  if (!this.token) {
+    box.innerHTML = "<p class='bad'>请先登录账号。</p>";
+    return;
+  }
+
+  const res = await fetch("/api/auction/my", {
+    headers: {
+      "Authorization": "Bearer " + this.token
+    }
+  });
+
+  const rows = await res.json().catch(() => []);
+
+  if (!res.ok || !Array.isArray(rows)) {
+    box.innerHTML = "<p class='bad'>读取我的上架失败</p>";
+    return;
+  }
+
+  if (!rows.length) {
+    box.innerHTML = "<p class='muted'>你暂无上架商品。</p>";
+    return;
+  }
+
+  box.innerHTML = rows.map(r => `
+    <div class="card">
+      <h3>#${r.id} 我的商品 <span class="tag">${this.auctionTypeName(r.itemType)}</span></h3>
+      ${this.auctionItemHTML(r.item, r.itemType)}
+      <p>
+        价格：<b class="gold">${Math.floor(r.price).toLocaleString()} 元宝</b><br>
+        剩余：${this.auctionLeftText(r.expireAt)}
+      </p>
+      <button class="danger" onclick="Online.cancelAuctionListing(${r.id})">下架</button>
+    </div>
+  `).join("");
+},
+
+async loadAuctionHistory() {
+  const box = document.getElementById("auctionHistoryBox");
+  if (!box) return;
+
+  if (!this.token) {
+    box.innerHTML = "<p class='bad'>请先登录账号。</p>";
+    return;
+  }
+
+  const res = await fetch("/api/auction/history", {
+    headers: {
+      "Authorization": "Bearer " + this.token
+    }
+  });
+
+  const rows = await res.json().catch(() => []);
+
+  if (!res.ok || !Array.isArray(rows)) {
+    box.innerHTML = "<p class='bad'>读取成交记录失败</p>";
+    return;
+  }
+
+  if (!rows.length) {
+    box.innerHTML = "<p class='muted'>暂无成交记录。</p>";
+    return;
+  }
+
+  box.innerHTML = rows.map(r => `
+    <div class="card">
+      <h3>#${r.id} 成交 <span class="tag">${this.auctionTypeName(r.itemType)}</span></h3>
+      ${this.auctionItemHTML(r.item, r.itemType)}
+      <p>
+        卖家：${this.escapeHTML(r.sellerUsername || "")}<br>
+        买家：${this.escapeHTML(r.buyerUsername || "")}<br>
+        成交价：<b class="gold">${Math.floor(r.price).toLocaleString()} 元宝</b><br>
+        时间：${new Date(r.soldAt).toLocaleString()}
+      </p>
+    </div>
+  `).join("");
+},
+
+async buyAuctionListing(id) {
+  if (!this.token) {
+    alert("请先登录账号");
+    return;
+  }
+
+  if (!confirm("确定购买该商品？")) return;
+
+  await this.uploadSave();
+
+  const res = await fetch("/api/auction/buy", {
+    method: "POST",
+    headers: this.authHeaders(),
+    body: JSON.stringify({ id })
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    alert(data.error || "购买失败");
+    return;
+  }
+
+  if (data.save && typeof Game !== "undefined" && Game.importSave) {
+    Game.importSave(data.save);
+  }
+
+  alert(data.message || "购买成功");
+
+  this.loadAuctionListings();
+  this.loadMyAuctionListings();
+  this.loadAuctionHistory();
+},
+
+async cancelAuctionListing(id) {
+  if (!this.token) {
+    alert("请先登录账号");
+    return;
+  }
+
+  if (!confirm("确定下架该商品？")) return;
+
+  const res = await fetch("/api/auction/cancel", {
+    method: "POST",
+    headers: this.authHeaders(),
+    body: JSON.stringify({ id })
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    alert(data.error || "下架失败");
+    return;
+  }
+
+  if (data.save && typeof Game !== "undefined" && Game.importSave) {
+    Game.importSave(data.save);
+  }
+
+  alert(data.message || "下架成功");
+
+  this.loadAuctionListings();
+  this.loadMyAuctionListings();
 },
   async loadRanking() {
     const box = document.getElementById("rankingBox");
